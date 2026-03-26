@@ -1,18 +1,10 @@
 <div align="center">
 
-<img src="frontend/assets/logo-dark.png" height="60" alt="LetterGram Logo" />
+<img src="frontend/assets/logo-ICON.png" height="60" alt="LetterGram Logo" />
 
 # LetterGram
 
-**Transforme suas reviews do Letterboxd em Stories cinematográficos para o Instagram.**
-
-`BETA` · Made with ♥ by [@wilsonwagn](https://github.com/wilsonwagn)
-
----
-
-![LetterGram Mockup](frontend/assets/mockup.png)
-
-</div>
+**Transforme suas reviews do Letterboxd em Stories para o Instagram.**
 
 ## O que é
 
@@ -20,12 +12,12 @@ LetterGram é uma ferramenta que combina o universo do cinema com o compartilham
 
 ## Tecnologias
 
-| Camada | Stack |
-|---|---|
-| **Frontend** | HTML · CSS · Vanilla JS · Tailwind CSS (CDN) |
-| **Backend** | Python · FastAPI · BeautifulSoup4 (scraping) |
-| **Deploy** | Vercel (frontend) · Uvicorn (backend local) |
-| **Exportação** | `html2canvas` para geração de imagem |
+| Camada                 | Stack                                           |
+| ---------------------- | ----------------------------------------------- |
+| **Frontend**     | HTML · CSS · Vanilla JS · Tailwind CSS (CDN) |
+| **Backend**      | Python · FastAPI · BeautifulSoup4 (scraping)  |
+| **Deploy**       | Vercel (frontend) · Uvicorn (backend local)    |
+| **Exportação** | `html2canvas` para geração de imagem        |
 
 ## Funcionalidades
 
