@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html class="dark" lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LetterGram Editor de Stories</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "brand-orange": "#ff8000",
+                    "brand-green": "#00e054",
+                    "brand-blue": "#40bcf4",
+                    "brand-neon": "#CCFF00",
+                    "background-dark": "#191919",
+                    "background-darker": "#111111",
+                },
+                fontFamily: { "display": ["Inter", "sans-serif"] },
+            },
+        },
+    }
+</script>
+<style>
+  body { min-height: 100dvh; overflow-x: hidden; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Seletor de cor de acento */
+  .accent-swatch { transition: transform 0.15s, box-shadow 0.15s; }
+  .accent-swatch.active { transform: scale(1.18); box-shadow: 0 0 0 2.5px #fff4, 0 0 0 4px var(--sw-color); }
+
+  /* Toggle button premium */
+  .ctrl-toggle { transition: background 0.2s, border-color 0.2s; }
+  .ctrl-toggle.active { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); }
+
+  /* Stars unicode */
+  .lb-star { font-style: normal; line-height: 1; }
+</style>
+</head>
+<body class="font-display bg-background-darker text-neutral-100 antialiased min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full flex-col max-w-md mx-auto bg-background-dark shadow-xl overflow-x-hidden">
+
+  <!-- Top bar -->
+  <div class="flex items-center p-4 pb-3 justify-between sticky top-0 bg-background-dark/95 backdrop-blur-md z-10 border-b border-white/5">
+    <button onclick="window.location.href='landing.html'" class="flex size-10 shrink-0 items-center justify-center text-neutral-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+      <span class="material-symbols-outlined text-xl">arrow_back_ios_new</span>
+    </button>
+    <div class="flex items-center gap-2">
+      <svg width="22" height="22" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 6px rgba(204,255,0,0.5));flex-shrink:0;">
+        <rect x="6" y="12" width="44" height="32" rx="3" stroke="#CCFF00" stroke-width="2.2" fill="none"/>
+        <rect x="2" y="16.5" width="5.5" height="5" rx="1.2" fill="#CCFF00"/>
+        <rect x="2" y="25.5" width="5.5" height="5" rx="1.2" fill="#CCFF00"/>
+        <rect x="2" y="34.5" width="5.5" height="5" rx="1.2" fill="#CCFF00"/>
+        <rect x="48.5" y="16.5" width="5.5" height="5" rx="1.2" fill="#CCFF00"/>
+        <rect x="48.5" y="25.5" width="5.5" height="5" rx="1.2" fill="#CCFF00"/>
+        <rect x="48.5" y="34.5" width="5.5" height="5" rx="1.2" fill="#CCFF00"/>
+        <circle cx="28" cy="28" r="10" stroke="#CCFF00" stroke-width="1.8" fill="none"/>
+        <circle cx="28" cy="28" r="3.5" fill="#CCFF00"/>
+        <path d="M36 38 L41 45 L33 42 Z" fill="#CCFF00" opacity="0.65"/>
+      </svg>
+      <span style="font-weight:900;font-size:16px;letter-spacing:-0.025em;color:#fff;">Letter<span style="color:#CCFF00;">gram</span></span>
+    </div>
+    <button onclick="location.reload()" class="flex w-10 items-center justify-end text-neutral-500 hover:text-white transition-colors shrink-0">
+      <span class="material-symbols-outlined text-xl">refresh</span>
+    </button>
+  </div>
+
+  <!-- Preview -->
+  <div class="py-5 px-4 flex flex-col items-center bg-[#0a0a0a] border-b border-white/5 flex-shrink-0">
+    <div id="capture-area" class="relative w-[270px] aspect-[9/16] overflow-hidden shadow-[0_24px_60px_rgba(0,0,0,0.8)]">
+
+      <!-- Poster -->
+      <img id="lb-poster" class="absolute inset-0 w-full h-full object-cover" src="">
+
+      <!-- Overlay gradiente -->
+      <div id="poster-overlay" class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-100 transition-opacity duration-300"></div>
+
+      <!-- Conteúdo: absoluto a partir do bottom com padding fixo -->
+      <div class="absolute left-0 right-0 bottom-0 px-4 pb-5 z-10">
+        <div class="space-y-2">
+
+          <!-- Estrelas: unicode ★ — renderiza igual no browser E no html2canvas -->
+          <div id="lb-stars" class="flex gap-0.5 items-center" style="color:#FFD700; font-size:13px; letter-spacing:1px;">
+            <span class="lb-star">★</span>
+            <span class="lb-star">★</span>
+            <span class="lb-star">★</span>
+            <span class="lb-star">★</span>
+            <span class="lb-star" style="opacity:0.35">★</span>
+          </div>
+
+          <!-- Título do filme -->
+          <h3 id="lb-movie-title" class="text-white font-black text-sm leading-[1.15] tracking-tight uppercase drop-shadow-xl">Dune: Part Two (2024)</h3>
+
+          <!-- Review -->
+          <p id="lb-review" class="text-white/90 text-[10px] leading-snug font-semibold drop-shadow-lg line-clamp-5 pl-2 pb-2" style="border-left: 2px solid rgba(255,215,0,0.7);">
+            Uma obra prima absoluta do cinema contemporâneo.
+          </p>
+
+          <!-- Autor — abaixo da review -->
+          <div class="flex items-center gap-2 pt-2">
+            <div id="lb-avatar-container" class="w-4 h-4 rounded-full border border-white/20 bg-white/10 overflow-hidden flex items-center justify-center flex-shrink-0">
+              <img id="lb-avatar" src="" class="w-full h-full object-cover hidden">
+              <span id="lb-avatar-placeholder" class="material-symbols-outlined text-white/40" style="font-size:13px;">person</span>
+            </div>
+            <span id="lb-username" class="text-white/60 text-[9px] font-medium tracking-wide -mt-3">Review by wilsonwagn</span>
+          </div>
+
+          <!-- Footer LetterGram -->
+          <div class="flex items-center gap-1.5 pt-2 border-t border-white/10">
+            <svg width="10" height="10" viewBox="0 0 56 56" fill="none">
+              <rect x="6" y="12" width="44" height="32" rx="3" stroke="#CCFF00" stroke-width="3" fill="none"/>
+              <circle cx="28" cy="28" r="8" stroke="#CCFF00" stroke-width="2.5" fill="none"/>
+              <circle cx="28" cy="28" r="3.5" fill="#CCFF00"/>
+            </svg>
+            <span class="text-white/40 text-[7px] font-black uppercase tracking-widest">LetterGram</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="flex-1 px-5 py-5 space-y-6 bg-background-dark overflow-y-auto no-scrollbar">
+
+    <!-- Cor de Acento -->
+    <div>
+      <p class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Cor de Acento</p>
+      <div class="flex gap-3 items-center">
+        <button class="accent-swatch active w-8 h-8 rounded-full" style="background:#CCFF00; --sw-color:#CCFF00;" onclick="setAccent('#CCFF00', this)"></button>
+        <button class="accent-swatch w-8 h-8 rounded-full" style="background:#ffffff; --sw-color:#ffffff;" onclick="setAccent('#ffffff', this)"></button>
+        <button class="accent-swatch w-8 h-8 rounded-full" style="background:#FFD700; --sw-color:#FFD700;" onclick="setAccent('#FFD700', this)"></button>
+        <button class="accent-swatch w-8 h-8 rounded-full" style="background:#FF6B9D; --sw-color:#FF6B9D;" onclick="setAccent('#FF6B9D', this)"></button>
+        <button class="accent-swatch w-8 h-8 rounded-full" style="background:#40bcf4; --sw-color:#40bcf4;" onclick="setAccent('#40bcf4', this)"></button>
+      </div>
+    </div>
+
+    <!-- Toggles: Overlay + Texto -->
+    <div>
+      <p class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Visibilidade</p>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="btn-overlay" onclick="toggleOverlay(this)" class="ctrl-toggle active flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/5">
+          <span class="material-symbols-outlined text-neutral-300 text-base">layers</span>
+          <span class="text-[11px] font-semibold text-neutral-300">Overlay</span>
+        </button>
+        <button id="btn-texto" onclick="toggleTexto(this)" class="ctrl-toggle active flex items-center gap-2 p-3 rounded-xl border border-white/8 bg-white/5">
+          <span class="material-symbols-outlined text-neutral-300 text-base">format_quote</span>
+          <span class="text-[11px] font-semibold text-neutral-300">Texto</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tamanho do Texto -->
+    <div>
+      <div class="flex justify-between items-center mb-3">
+        <p class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Tamanho do Texto</p>
+        <span id="txt-size-val" class="text-[9px] font-bold text-neutral-400">10px</span>
+      </div>
+      <input class="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-[#CCFF00]" max="18" min="8" value="10" type="range" oninput="changeTextSize(this.value)"/>
+    </div>
+
+    <!-- Ajuste da Imagem -->
+    <div>
+      <p class="text-[9px] font-bold text-neutral-500 uppercase tracking-widest mb-3">Ajuste da Imagem</p>
+      <div class="space-y-4">
+        <div>
+          <div class="flex justify-between mb-2">
+            <span class="text-[9px] text-neutral-500">Horizontal</span>
+            <span id="pos-x-val" class="text-[9px] text-[#CCFF00] font-bold">50%</span>
+          </div>
+          <input id="img-pos-x" class="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-[#CCFF00]" max="100" min="0" value="50" type="range" oninput="changeImagePos()"/>
+        </div>
+        <div>
+          <div class="flex justify-between mb-2">
+            <span class="text-[9px] text-neutral-500">Vertical</span>
+            <span id="pos-y-val" class="text-[9px] text-[#CCFF00] font-bold">50%</span>
+          </div>
+          <input id="img-pos-y" class="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-[#CCFF00]" max="100" min="0" value="50" type="range" oninput="changeImagePos()"/>
+        </div>
+        <div>
+          <div class="flex justify-between mb-2">
+            <span class="text-[9px] text-neutral-500">Zoom</span>
+            <span id="zoom-val" class="text-[9px] text-[#CCFF00] font-bold">100%</span>
+          </div>
+          <input id="img-zoom" class="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-[#CCFF00]" max="200" min="100" value="100" type="range" oninput="changeImageZoom()"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botão Download -->
+    <button onclick="downloadStory()" class="w-full bg-[#CCFF00] hover:opacity-90 text-black font-bold text-[13px] uppercase tracking-widest py-4 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98] shadow-[0_8px_32px_rgba(204,255,0,0.25)]">
+      <span class="material-symbols-outlined text-black">download</span>
+      Baixar Story
+    </button>
+
+  </div>
+</div>
+
+<script>
+  // ── Estado global de acento ────────────────────────────────────
+  let currentAccent = '#CCFF00';
+
+  // ── Inicialização ──────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", () => {
+    const data = localStorage.getItem('lettergram_mock_data');
+    if (!data) return;
+
+    const d = JSON.parse(data);
+    document.getElementById('lb-movie-title').textContent = d.movieTitle;
+    document.getElementById('lb-username').textContent = 'Review by ' + (d.username || '').toLowerCase();
+    document.getElementById('lb-review').textContent = d.reviewText;
+
+    // Poster
+    const posterImg = document.getElementById('lb-poster');
+    const src = d.posterBase64 || d.posterUrl;
+    if (src) { posterImg.src = src; }
+
+    // Avatar
+    if (d.avatarBase64) {
+      document.getElementById('lb-avatar').src = d.avatarBase64;
+      document.getElementById('lb-avatar').classList.remove('hidden');
+      document.getElementById('lb-avatar-placeholder').classList.add('hidden');
+    }
+
+    // Estrelas como unicode ★ — funciona em todo renderer
+    renderStars(d.stars || 0);
+  });
+
+  function renderStars(count) {
+    const container = document.getElementById('lb-stars');
+    container.innerHTML = '';
+    const full = Math.floor(count);
+    const half = count % 1 >= 0.5;
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('span');
+      s.className = 'lb-star flex items-center justify-center';
+      
+      const svg = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>';
+
+      if (i < full) {
+        s.style.opacity = '1';
+        s.innerHTML = svg;
+      } else if (i === full && half) {
+        // Meia estrela perfeita com SVG (sem bugs de line-height)
+        s.style.position = 'relative';
+        s.style.display = 'inline-block';
+        s.innerHTML = `
+          <span style="opacity: 0.25; display: block;">${svg}</span>
+          <span style="position: absolute; left: 0; top: 0; width: 50%; height: 100%; overflow: hidden; display: block; opacity: 1;">${svg}</span>
+        `;
+      } else {
+        s.style.opacity = '0.35';
+        s.innerHTML = svg;
+      }
+      container.appendChild(s);
+    }
+  }
+
+  // ── Cor de Acento ──────────────────────────────────────────────
+  function setAccent(color, btn) {
+    currentAccent = color;
+    // Atualizar estrelas
+    document.getElementById('lb-stars').style.color = color;
+    // Atualizar borda da review
+    document.getElementById('lb-review').style.borderLeftColor = color;
+    // Atualizar destaque dos swatches
+    document.querySelectorAll('.accent-swatch').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+  }
+  // Inicializar acento padrão
+  document.getElementById('lb-stars').style.color = currentAccent;
+  document.getElementById('lb-review').style.borderLeftColor = currentAccent;
+
+  // ── Toggles ────────────────────────────────────────────────────
+  function toggleOverlay(btn) {
+    const el = document.getElementById('poster-overlay');
+    const isOn = btn.classList.contains('active');
+    el.style.opacity = isOn ? '0' : '1';
+    el.style.transition = 'opacity 0.3s';
+    btn.classList.toggle('active');
+  }
+
+  function toggleTexto(btn) {
+    const el = document.getElementById('lb-review');
+    const isOn = btn.classList.contains('active');
+    el.style.opacity = isOn ? '0' : '1';
+    el.style.transition = 'opacity 0.3s';
+    btn.classList.toggle('active');
+  }
+
+  // ── Tamanho do texto ───────────────────────────────────────────
+  function changeTextSize(val) {
+    document.getElementById('txt-size-val').textContent = val + 'px';
+    const p = document.getElementById('lb-review');
+    p.style.fontSize = val + 'px';
+    p.style.lineHeight = '1.35';
+  }
+
+  // ── Posição da imagem ──────────────────────────────────────────
+  function changeImagePos() {
+    const x = document.getElementById('img-pos-x').value;
+    const y = document.getElementById('img-pos-y').value;
+    document.getElementById('pos-x-val').textContent = x + '%';
+    document.getElementById('pos-y-val').textContent = y + '%';
+    const poster = document.getElementById('lb-poster');
+    poster.style.objectPosition = x + '% ' + y + '%';
+    poster.style.transformOrigin = x + '% ' + y + '%';
+  }
+
+  function changeImageZoom() {
+    const zoom = document.getElementById('img-zoom').value;
+    document.getElementById('zoom-val').textContent = zoom + '%';
+    const scale = zoom / 100;
+    const poster = document.getElementById('lb-poster');
+    poster.style.transform = 'scale(' + scale + ')';
+    poster.style.transformOrigin =
+      document.getElementById('img-pos-x').value + '% ' +
+      document.getElementById('img-pos-y').value + '%';
+  }
+
+  // ── Download ───────────────────────────────────────────────────
+  async function downloadStory() {
+    const btn = event.currentTarget;
+    const origHTML = btn.innerHTML;
+    btn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span><span class="text-xs tracking-widest">Gerando...</span>';
+    btn.disabled = true;
+
+    const posterImg = document.getElementById('lb-poster');
+    const area = document.getElementById('capture-area');
+    let bgDiv = null;
+
+
+    try {
+      // Aguardar poster
+      if (posterImg.src && !posterImg.complete) {
+        await new Promise((res, rej) => {
+          posterImg.onload = res; posterImg.onerror = rej;
+          setTimeout(rej, 12000);
+        });
+      }
+
+      // ── Substituir <img> por <div background-image> (html2canvas não suporta object-fit)
+      const posX = document.getElementById('img-pos-x')?.value ?? '50';
+      const posY = document.getElementById('img-pos-y')?.value ?? '50';
+      const zoom = Number(document.getElementById('img-zoom')?.value ?? 100);
+      const scale = zoom / 100;
+
+      if (posterImg.src) {
+        const cW = area.offsetWidth, cH = area.offsetHeight;
+        const iW = posterImg.naturalWidth || cW;
+        const iH = posterImg.naturalHeight || cH;
+        const imgAsp = iW / iH, cAsp = cW / cH;
+        let coverW, coverH;
+        if (imgAsp > cAsp) { coverH = cH; coverW = cH * imgAsp; }
+        else                { coverW = cW; coverH = cW / imgAsp; }
+
+        bgDiv = document.createElement('div');
+        bgDiv.style.cssText = `
+          position:absolute; inset:0;
+          background-image: url("${posterImg.src}");
+          background-size: ${Math.round(coverW*scale)}px ${Math.round(coverH*scale)}px;
+          background-repeat: no-repeat;
+          background-position: ${posX}% ${posY}%;
+        `;
+        posterImg.parentElement.insertBefore(bgDiv, posterImg);
+        posterImg.style.display = 'none';
+      }
+
+      await new Promise(r => setTimeout(r, 300));
+
+      const canvas = await html2canvas(area, {
+        useCORS: true, allowTaint: true,
+        scale: 4, backgroundColor: null,
+        logging: false,
+        width: area.offsetWidth,
+        height: area.offsetHeight,
+      });
+
+      const link = document.createElement('a');
+      link.download = 'lettergram-' + Date.now() + '.jpg';
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+
+    } catch(e) {
+      alert('Erro ao gerar imagem: ' + e.message);
+      console.error(e);
+    } finally {
+      if (bgDiv) { bgDiv.remove(); posterImg.style.display = ''; }
+      btn.innerHTML = '<span class="material-symbols-outlined text-brand-green">download</span>Baixar Story';
+      btn.disabled = false;
+    }
+  }
+</script>
+</body></html>
