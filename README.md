@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/assets/logo-ICON.png" height="60" alt="LetterGram Logo" />
+<img src="frontend/assets/logo-icon.png" height="60" alt="LetterGram Logo" />
 
 # LetterGram
 
