@@ -1,0 +1,7 @@
+# Ignora node_modules mas inclui o dist gerado pelo Expo web export
+mobile/node_modules
+mobile/.expo
+backend/venv
+backend/__pycache__
+backend/.pytest_cache
+.git
