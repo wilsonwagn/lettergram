@@ -1,14 +1,16 @@
 // ──────────────────────────────────────────────
 //  LetterGram Design System
+//  Tokens centralizados: cores, tipografia, espaçamentos, sombras.
+//  Todos os componentes importam daqui para manter consistência.
 // ──────────────────────────────────────────────
 
 export const Colors = {
-  // Brand
+  // Brand (verde-limão neon)
   accent: '#CCFF00',
   accentDim: 'rgba(204,255,0,0.15)',
   accentGlow: 'rgba(204,255,0,0.35)',
 
-  // Backgrounds
+  // Backgrounds (dark mode)
   bg: '#0A0A0A',
   surface1: '#111111',
   surface2: '#1A1A1A',
@@ -28,7 +30,7 @@ export const Colors = {
 } as const;
 
 export const Typography = {
-  // Font families (loaded via expo-font)
+  // Font families (carregadas via expo-font no _layout.tsx)
   fontRegular: 'Inter_400Regular',
   fontMedium: 'Inter_500Medium',
   fontSemiBold: 'Inter_600SemiBold',
@@ -36,7 +38,7 @@ export const Typography = {
   fontExtraBold: 'Inter_800ExtraBold',
   fontBlack: 'Inter_900Black',
 
-  // Sizes
+  // Tamanhos de fonte
   xs: 10,
   sm: 12,
   base: 14,
@@ -57,7 +59,7 @@ export const Spacing = {
   '2xl': 24,
   '3xl': 32,
   '4xl': 48,
-  screenPadding: 20,
+  screenPadding: 20,  // padding horizontal padrão das telas
 } as const;
 
 export const Radius = {
@@ -66,10 +68,11 @@ export const Radius = {
   lg: 16,
   xl: 20,
   '2xl': 24,
-  full: 9999,
+  full: 9999,  // pílula / circular
 } as const;
 
 export const Shadows = {
+  // Sombra neon para elementos de destaque
   accent: {
     shadowColor: '#CCFF00',
     shadowOffset: { width: 0, height: 6 },
@@ -77,6 +80,7 @@ export const Shadows = {
     shadowRadius: 16,
     elevation: 8,
   },
+  // Sombra neutra para cards
   card: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },

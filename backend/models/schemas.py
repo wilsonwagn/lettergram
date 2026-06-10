@@ -1,17 +1,21 @@
+"""
+Schemas Pydantic — define os modelos de resposta da API.
+Cada campo opcional tem default vazio para evitar erros de serialização.
+"""
 from pydantic import BaseModel
 from typing import Optional, List
 
 
-# ── Review (existing) ──────────────────────────────────────────────────
+# ── Review (extração de uma review individual) ─────────────────────────
 class ReviewResponse(BaseModel):
-    movieTitle: str
-    reviewText: str
-    stars: float
-    username: str
-    posterUrl: str
-    posterBase64: str = ""
-    avatarBase64: str = ""
-    originalUrl: str
+    movieTitle: str          # título do filme
+    reviewText: str          # texto completo da review
+    stars: float             # nota em estrelas (0.0 a 5.0)
+    username: str            # autor da review
+    posterUrl: str            # URL original do poster
+    posterBase64: str = ""   # poster convertido em base64 (evita CORS)
+    avatarBase64: str = ""   # avatar do autor em base64
+    originalUrl: str         # link original da review
 
 
 # ── Profile ────────────────────────────────────────────────────────────
@@ -23,14 +27,14 @@ class FavoriteFilm(BaseModel):
 
 
 class DiaryEntry(BaseModel):
-    date: str = ""
+    date: str = ""            # data em formato YYYY-MM-DD
     movieTitle: str
     year: Optional[int] = None
     stars: float = 0.0
     posterUrl: str = ""
     posterBase64: str = ""
     reviewUrl: str = ""
-    letterboxdUri: str = ""
+    letterboxdUri: str = ""   # link completo no Letterboxd
 
 
 class ProfileResponse(BaseModel):
@@ -47,7 +51,7 @@ class ProfileResponse(BaseModel):
     recentActivity: List[DiaryEntry] = []
 
 
-# ── Diary ──────────────────────────────────────────────────────────────
+# ── Diary (paginado) ──────────────────────────────────────────────────
 class DiaryResponse(BaseModel):
     username: str
     page: int

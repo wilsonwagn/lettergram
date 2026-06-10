@@ -9,6 +9,7 @@ __pycache__/
 dist/
 build/
 .eggs/
+.pytest_cache/
 
 # Virtual environments
 venv/
@@ -21,9 +22,10 @@ env/
 .env.local
 *.env
 
-# Node / frontend tooling (se usar futuramente)
+# Node / frontend tooling
 node_modules/
 .npm/
+.expo/
 
 # OS files
 .DS_Store
@@ -35,6 +37,7 @@ desktop.ini
 .idea/
 *.suo
 *.user
+.gemini/
 
 # Logs
 *.log

@@ -1,3 +1,8 @@
+"""
+Scraper de reviews individuais do Letterboxd.
+Recebe a URL de uma review e retorna título, nota, texto, poster e avatar.
+Usa requests + BeautifulSoup para parsing do HTML.
+"""
 import requests
 import base64
 import re
@@ -8,10 +13,12 @@ from models.schemas import ReviewResponse
 
 def extract_letterboxd_review(url: str) -> ReviewResponse:
     """
-    Função de serviço isolada exclusivamente para a regra de negócio do web scraping da página do Letterboxd.
+    Scraping completo de uma review do Letterboxd.
+    Extrai: título do filme, texto da review, estrelas, poster (base64) e avatar.
     """
     print(f"\n🔍 Iniciando scraping de: {url}")
 
+    # Garante protocolo https
     if not url.startswith("http"):
         url = "https://" + url
 
@@ -20,10 +27,9 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
         'Referer': 'https://letterboxd.com/'
     }
 
-    # Usar sessão persistente para manter cookies e contexto de navegador
+    # Sessão persistente mantém cookies entre requests (evita bloqueios)
     session = requests.Session()
     session.headers.update(headers)
-    print("✅ Session criada com User-Agent e Referer")
 
     try:
         response = session.get(url, allow_redirects=True, timeout=10)
@@ -36,39 +42,38 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
 
     soup = BeautifulSoup(response.text, 'html.parser')
 
-    # Validação inicial: se não existe "Letterboxd" no texto ou meta-tags, é um link inválido
+    # Valida se é uma página do Letterboxd
     if "Letterboxd" not in soup.get_text():
         raise HTTPException(
             status_code=400, detail="A URL fornecida não parece ser uma página válida do Letterboxd.")
 
     try:
+        # ── Título do filme ──────────────────────────────────
         og_title = soup.find("meta", property="og:title")
         title_raw = og_title["content"] if og_title else ""
 
-        # O Letterboxd as vezes coloca "A review of", "A ★★★★ review of", "wilsonwagn's review of...", etc.
-        # Vamos remover qualquer coisa antes de "review of " (incluindo estrelas) e o "review of " em si
-        # Usamos um regex mais robusto que lida com espaços e caracteres especiais
+        # Remove prefixos como "A ★★★★ review of" ou "username's review of"
         movie_title = re.sub(r'^.*?\breview\s+of\s+', '',
                              title_raw, flags=re.IGNORECASE | re.UNICODE)
+        movie_title = movie_title.split(" - ")[0].strip()
 
-        # Se ainda houver o sufixo " - Letterboxd" ou o nome do usuário no final
-        movie_title = movie_title.split(" - ")[0]
-        movie_title = movie_title.strip()
-
-        # Fallback de segurança se o regex falhar
+        # Fallback se o regex não limpou tudo
         if "review of " in movie_title.lower():
             movie_title = movie_title.lower().split(
                 "review of ")[-1].capitalize()
 
+        # ── Texto da review ──────────────────────────────────
         review_div = soup.find("div", class_="review bodytext")
         review_text = ""
         if review_div:
             paragraphs = review_div.find_all("p")
             review_text = "\n\n".join([p.get_text() for p in paragraphs])
         else:
+            # Fallback: usa og:description
             og_desc = soup.find("meta", property="og:description")
             review_text = og_desc["content"] if og_desc else ""
 
+        # ── Nota em estrelas ─────────────────────────────────
         rating_span = soup.find("span", class_="rating")
         stars = 0.0
         if rating_span:
@@ -77,7 +82,7 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
             if "½" in text_rating:
                 stars += 0.5
 
-        # Fallback 1: buscar em qualquer span com 'rating' no nome da classe
+        # Fallback 1: qualquer span com 'rating' na classe
         if stars == 0.0:
             all_rating_spans = soup.find_all("span", class_=lambda c: c and "rating" in c.lower())
             for span in all_rating_spans:
@@ -86,7 +91,7 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
                     stars = t.count("★") + (0.5 if "½" in t else 0)
                     break
 
-        # Fallback 2: buscar estrelas no og:description (Letterboxd sempre inclui)
+        # Fallback 2: estrelas no og:description
         if stars == 0.0:
             og_desc_meta = soup.find("meta", property="og:description")
             if og_desc_meta:
@@ -95,13 +100,14 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
                     stars = desc_text.count("★") + (0.5 if "½" in desc_text else 0)
                     print(f"⭐ Estrelas extraídas do og:description: {stars}")
 
+        # ── Autor da review ──────────────────────────────────
         author = ""
         avatar_base64 = ""
         author_span = soup.find("span", itemprop="name")
         if author_span:
             author = author_span.get_text()
 
-        # Tentar pegar foto de perfil do usuario
+        # Avatar do autor (converte para base64 para evitar CORS no app)
         avatar_link = soup.find("a", class_="avatar")
         if avatar_link:
             avatar_img = avatar_link.find("img")
@@ -122,11 +128,13 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
                     print(f"   ❌ Erro: {type(e).__name__} - {e}")
 
         else:
+            # Fallback: twitter:creator meta tag
             twitter_creator = soup.find(
                 "meta", attrs={"name": "twitter:creator"})
             if twitter_creator:
                 author = twitter_creator["content"].replace("@", "")
 
+        # ── Poster do filme (base64) ─────────────────────────
         poster_url = ""
         poster_base64 = ""
         og_image = soup.find("meta", property="og:image")
@@ -134,9 +142,7 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
             poster_url = og_image["content"]
             print(f"📸 Tentando baixar poster: {poster_url}")
             try:
-                # Converter para Base64 para evitar erro de CORS no download do frontend
                 img_res = session.get(poster_url, timeout=5)
-                print(f"   Status: {img_res.status_code}")
                 if img_res.status_code == 200:
                     content_type = img_res.headers.get(
                         'content-type', 'image/jpeg')
@@ -148,6 +154,7 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
             except Exception as e:
                 print(f"   ❌ Erro ao converter poster: {type(e).__name__} - {e}")
 
+        # Fallback: extrai username da URL final
         if not author:
             try:
                 final_url = response.url

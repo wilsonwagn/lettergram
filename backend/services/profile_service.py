@@ -1,26 +1,59 @@
+"""
+Serviços de scraping de perfil e diário do Letterboxd.
+Usa sessão com cookies reais para evitar bloqueio 403.
+"""
 import requests
 import base64
 import re
+import time
+import random
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 from models.schemas import ProfileResponse, DiaryResponse, DiaryEntry, FavoriteFilm
 
+# Headers que imitam um navegador Chrome real (evita 403)
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/124.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,'
+              'image/avif,image/webp,image/apng,*/*;q=0.8',
     'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Referer': 'https://letterboxd.com/',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Connection': 'keep-alive',
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'DNT': '1',
+    'Cache-Control': 'max-age=0',
 }
 
 
 def _session() -> requests.Session:
+    """Cria sessão com cookies reais visitando a homepage primeiro."""
     s = requests.Session()
     s.headers.update(HEADERS)
+    try:
+        # Warmup: visita homepage para estabelecer cookies (evita 403)
+        s.get('https://letterboxd.com/', timeout=10,
+              headers={**HEADERS, 'Referer': 'https://www.google.com/'})
+        # Pausa aleatória para parecer mais humano
+        time.sleep(random.uniform(0.3, 0.8))
+    except Exception:
+        pass
+    s.headers.update({'Referer': 'https://letterboxd.com/'})
     return s
 
 
 def _image_to_base64(session: requests.Session, url: str) -> str:
-    """Faz download de uma imagem e converte para base64 data URI."""
+    """Baixa imagem e converte para data URI base64."""
     if not url:
         return ""
     try:
@@ -35,28 +68,30 @@ def _image_to_base64(session: requests.Session, url: str) -> str:
 
 
 def _parse_stars(text: str) -> float:
-    """Converte string de estrelas (★★★½) para float."""
-    stars = text.count('★') + (0.5 if '½' in text else 0)
-    return stars
+    """Converte string de estrelas (★★★½) para float (3.5)."""
+    return text.count('★') + (0.5 if '½' in text else 0)
 
 
 def scrape_profile(username: str) -> ProfileResponse:
-    """
-    Faz scraping do perfil público de um usuário do Letterboxd.
-    Página: letterboxd.com/{username}/
-    """
+    """Faz scraping do perfil público de um usuário do Letterboxd."""
     session = _session()
     url = f"https://letterboxd.com/{username}/"
 
     try:
-        r = session.get(url, timeout=12)
+        r = session.get(url, timeout=15)
+        if r.status_code == 403:
+            raise HTTPException(
+                status_code=503,
+                detail="Letterboxd bloqueou o acesso (403). Tente novamente em alguns segundos."
+            )
         r.raise_for_status()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao acessar perfil: {str(e)}")
 
     soup = BeautifulSoup(r.text, 'html.parser')
 
-    # Validação
     if 'Letterboxd' not in soup.get_text():
         raise HTTPException(status_code=404, detail="Perfil não encontrado.")
 
@@ -86,7 +121,7 @@ def scrape_profile(username: str) -> ProfileResponse:
             avatar_url = img['src']
             avatar_b64 = _image_to_base64(session, avatar_url)
 
-    # Fallback: og:image might be the avatar
+    # Fallback: og:image pode ser o avatar
     if not avatar_url:
         og_img = soup.find('meta', property='og:image')
         if og_img:
@@ -98,7 +133,6 @@ def scrape_profile(username: str) -> ProfileResponse:
     following = 0
     total_this_year = 0
 
-    # Try the stats from the profile sidebar
     stats_section = soup.find_all('a', href=re.compile(r'/' + re.escape(username) + r'/following/?$|/' + re.escape(username) + r'/followers/?$', re.I))
     for stat_a in stats_section:
         value_el = stat_a.find('span', class_=re.compile(r'value|count', re.I))
@@ -115,7 +149,7 @@ def scrape_profile(username: str) -> ProfileResponse:
             elif 'follow' in label:
                 followers = val
 
-    # film count from /films/ page stat
+    # Contagem total de filmes
     films_link = soup.find('a', href=re.compile(f'/{re.escape(username)}/films/?$', re.I))
     if films_link:
         count_span = films_link.find('span', class_=re.compile(r'count|value', re.I))
@@ -125,7 +159,7 @@ def scrape_profile(username: str) -> ProfileResponse:
             except ValueError:
                 pass
 
-    # ── Favorite films ────────────────────────────────────
+    # ── Filmes favoritos ──────────────────────────────────
     favorites: list[FavoriteFilm] = []
     fav_section = soup.find('section', class_=re.compile(r'favourites|favorites', re.I))
     if fav_section:
@@ -144,7 +178,7 @@ def scrape_profile(username: str) -> ProfileResponse:
                     posterBase64=poster_b64,
                 ))
 
-    # ── Recent activity (diary) ────────────────────────────
+    # ── Atividade recente (página 1 do diário) ────────────
     recent = scrape_diary(username, page=1)
 
     return ProfileResponse(
@@ -163,41 +197,42 @@ def scrape_profile(username: str) -> ProfileResponse:
 
 
 def scrape_diary(username: str, page: int = 1) -> DiaryResponse:
-    """
-    Faz scraping do diário de filmes de um usuário do Letterboxd.
-    URL: letterboxd.com/{username}/films/diary/page/{page}/
-    Retorna até 28 entradas por página.
-    """
+    """Faz scraping de uma página do diário (até 28 entradas por página)."""
     session = _session()
     url = f"https://letterboxd.com/{username}/films/diary/page/{page}/"
 
     try:
-        r = session.get(url, timeout=12)
+        r = session.get(url, timeout=15)
+        if r.status_code == 403:
+            raise HTTPException(
+                status_code=503,
+                detail="Letterboxd bloqueou o acesso (403). Tente novamente em alguns segundos."
+            )
         r.raise_for_status()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erro ao acessar diário: {str(e)}")
 
     soup = BeautifulSoup(r.text, 'html.parser')
     entries: list[DiaryEntry] = []
 
-    # Each diary entry row
+    # Cada linha da tabela é uma entrada do diário
     rows = soup.find_all('tr', class_='diary-entry-row')
     for row in rows:
         try:
-            # Date
+            # Data da entrada
             date_td = row.find('td', class_='td-calendar-td')
             date_str = ""
             if date_td:
                 date_link = date_td.find('a')
                 if date_link and date_link.get('href'):
-                    # href like /username/films/diary/for/2025/04/10/
                     parts = date_link['href'].strip('/').split('/')
-                    # structure: username/films/diary/for/YYYY/MM/DD
                     for_idx = parts.index('for') if 'for' in parts else -1
                     if for_idx >= 0 and len(parts) > for_idx + 3:
                         date_str = f"{parts[for_idx+1]}-{parts[for_idx+2]:>02}-{parts[for_idx+3]:>02}"
 
-            # Movie title & year
+            # Título e ano do filme
             title = ""
             year = None
             title_td = row.find('td', class_='td-film-details')
@@ -213,7 +248,7 @@ def scrape_diary(username: str, page: int = 1) -> DiaryResponse:
                     except ValueError:
                         pass
 
-            # Stars / rating
+            # Nota em estrelas
             stars = 0.0
             rating_td = row.find('td', class_='td-rating')
             if rating_td:
@@ -221,7 +256,7 @@ def scrape_diary(username: str, page: int = 1) -> DiaryResponse:
                 if rating_span:
                     stars = _parse_stars(rating_span.get_text())
 
-            # Poster
+            # Poster do filme
             poster_url = ""
             poster_b64 = ""
             img_div = row.find('div', class_=re.compile(r'film-poster', re.I))
@@ -229,11 +264,11 @@ def scrape_diary(username: str, page: int = 1) -> DiaryResponse:
                 img = img_div.find('img')
                 if img and img.get('src'):
                     poster_url = img['src']
-                    # Only download poster for first page to avoid timeout
+                    # Só baixa poster na página 1 para evitar timeout
                     if page == 1:
                         poster_b64 = _image_to_base64(session, poster_url)
 
-            # Review / Letterboxd URI
+            # Link do filme no Letterboxd
             review_url = ""
             letterboxd_uri = ""
             name_td = row.find('td', class_='td-film-details')
