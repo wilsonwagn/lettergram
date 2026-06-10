@@ -141,11 +141,19 @@ export default function StoryScreen() {
 
   /** Baixa a imagem do Story na galeria ou no Web */
   const handleDownload = async () => {
-    if (!viewShotRef.current) return;
     setSaving(true);
     setDownloadSuccess(false);
     try {
-      const uri = await (viewShotRef.current as any).capture();
+      let uri;
+      if (Platform.OS === 'web') {
+        const htmlToImage = await import('html-to-image');
+        const domNode = document.getElementById('story-card');
+        if (!domNode) throw new Error('DOM node not found');
+        uri = await htmlToImage.toPng(domNode, { cacheBust: true, pixelRatio: 2 });
+      } else {
+        if (!viewShotRef.current) return;
+        uri = await (viewShotRef.current as any).capture();
+      }
       
       if (Platform.OS === 'web') {
         const link = document.createElement('a');
@@ -327,7 +335,7 @@ export default function StoryScreen() {
             options={{ format: 'png', quality: 1.0 }}
             style={styles.viewShotWrap}
           >
-            <View style={[styles.storyCard, { width: PREVIEW_W, height: PREVIEW_MAX_H }]}>
+            <View nativeID="story-card" style={[styles.storyCard, { width: PREVIEW_W, height: PREVIEW_MAX_H }]}>
               {/* Background: poster blur */}
               {data.posterBase64 ? (
                 <Image
