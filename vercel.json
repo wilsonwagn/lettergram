@@ -6,16 +6,19 @@
       "use": "@vercel/python"
     },
     {
-      "src": "mobile/dist/**",
-      "use": "@vercel/static"
+      "src": "mobile/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "outputDirectory": "dist"
+      }
     }
   ],
   "routes": [
     { "src": "/api/(.*)", "dest": "/backend/main.py" },
-    { "src": "/_expo/(.*)", "dest": "/mobile/dist/_expo/$1" },
-    { "src": "/assets/(.*)", "dest": "/mobile/dist/assets/$1" },
-    { "src": "/favicon.ico", "dest": "/mobile/dist/favicon.ico" },
-    { "src": "/(.*\\.(js|css|png|jpg|svg|ttf|woff|woff2|json))$", "dest": "/mobile/dist/$1" },
-    { "src": "/(.*)", "dest": "/mobile/dist/index.html" }
+    { "src": "/_expo/(.*)", "dest": "/mobile/_expo/$1" },
+    { "src": "/assets/(.*)", "dest": "/mobile/assets/$1" },
+    { "src": "/favicon.ico", "dest": "/mobile/favicon.ico" },
+    { "src": "/(.*\\.(js|css|png|jpg|svg|ttf|woff|woff2|json))$", "dest": "/mobile/$1" },
+    { "src": "/(.*)", "dest": "/mobile/index.html" }
   ]
 }
