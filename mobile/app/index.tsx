@@ -36,7 +36,7 @@ const ACCENT_OPTIONS = [
   { color: '#69FFA0', label: 'Menta' },
 ];
 
-const REVIEW_CHUNK_SIZE = 200;
+const REVIEW_CHUNK_SIZE = 700;
 
 /** Estrelas visuais */
 function StarDisplay({ stars, accent }: { stars: number; accent: string }) {
@@ -86,6 +86,7 @@ export default function StoryScreen() {
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [showLetterboxd, setShowLetterboxd] = useState(true);
   const [fontSizeOffset, setFontSizeOffset] = useState(0);
+  const [userSizeOffset, setUserSizeOffset] = useState(0);
   const [exportAsSticker, setExportAsSticker] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -327,15 +328,28 @@ export default function StoryScreen() {
             <View style={styles.fontControls}>
               <TouchableOpacity 
                 style={styles.toolBtnIcon} 
-                onPress={() => setFontSizeOffset(prev => Math.max(prev - 2, -4))}
+                onPress={() => setFontSizeOffset(prev => Math.max(prev - 4, -8))}
               >
                 <Text style={styles.toolBtnText}>A-</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.toolBtnIcon} 
-                onPress={() => setFontSizeOffset(prev => Math.min(prev + 2, 4))}
+                onPress={() => setFontSizeOffset(prev => Math.min(prev + 2, 8))}
               >
                 <Text style={styles.toolBtnText}>A+</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.toolBtnIcon} 
+                onPress={() => setUserSizeOffset(prev => Math.max(prev - 2, -4))}
+              >
+                <Text style={styles.toolBtnText}>👤-</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.toolBtnIcon} 
+                onPress={() => setUserSizeOffset(prev => Math.min(prev + 2, 8))}
+              >
+                <Text style={styles.toolBtnText}>👤+</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -387,20 +401,20 @@ export default function StoryScreen() {
                       />
                     ) : null}
                     <View style={styles.storyMeta}>
-                      <Text style={styles.storyTitle} numberOfLines={2}>
+                      <Text style={styles.storyTitle} numberOfLines={3}>
                         {data.movieTitle}
                       </Text>
                       <StarDisplay stars={data.stars} accent={accent} />
                       {data.username ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                           {data.avatarBase64 ? (
                             <Image
                               source={{ uri: data.avatarBase64 }}
-                              style={{ width: 14, height: 14, borderRadius: 7 }}
+                              style={{ width: 12 + userSizeOffset, height: 12 + userSizeOffset, borderRadius: (12 + userSizeOffset) / 2 }}
                               contentFit="cover"
                             />
                           ) : null}
-                          <Text style={[styles.storyUser, { color: accent, fontSize: 9 }]}>
+                          <Text style={[styles.storyUser, { color: accent, fontSize: 8 + userSizeOffset }]}>
                             {data.username.toUpperCase()}
                           </Text>
                         </View>
@@ -412,22 +426,24 @@ export default function StoryScreen() {
                     <View style={[styles.reviewBubble, { borderLeftColor: accent }]}>
                       <Text 
                         style={[styles.reviewText, { fontSize: 11 + fontSizeOffset, lineHeight: 16 + fontSizeOffset }]} 
-                        numberOfLines={5}
+                        numberOfLines={15}
                       >
                         "{displayText}"
                       </Text>
                     </View>
                   ) : null}
+                </View>
+
                 {/* Footer Logo */}
                 {showLetterboxd && (
                   <View style={styles.storyBottom}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <View style={{ flexDirection: 'row', marginRight: 6 }}>
-                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#FF8000' }} />
-                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#00E054', marginLeft: -4 }} />
-                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#40BCF4', marginLeft: -4 }} />
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF8000' }} />
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#00E054', marginLeft: -3 }} />
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#40BCF4', marginLeft: -3 }} />
                       </View>
-                      <Text style={{ color: '#fff', fontSize: 13, fontFamily: Typography.fontBold, letterSpacing: -0.5 }}>Letterboxd</Text>
+                      <Text style={{ color: '#fff', fontSize: 10, fontFamily: Typography.fontBold, letterSpacing: -0.5 }}>Letterboxd</Text>
                     </View>
                   </View>
                 )}
@@ -769,9 +785,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   storyMiddle: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   storyPoster: {
     width: 60,
@@ -780,12 +796,14 @@ const styles = StyleSheet.create({
   storyMeta: {
     flex: 1,
     gap: 4,
+    alignItems: 'center',
   },
   storyTitle: {
     fontSize: 17,
     fontFamily: Typography.fontBlack,
     color: '#fff',
     lineHeight: 21,
+    textAlign: 'center',
   },
   storyUser: {
     fontSize: 10,
