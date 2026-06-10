@@ -6,16 +6,18 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 
 // ─── Backend URL ────────────────────────────────────────────────────────────
-// Auto-detecta plataforma: web → localhost, Android emulator → 10.0.2.2
-// Para dispositivo físico na mesma rede Wi-Fi, defina PHYSICAL_DEVICE_IP
+// Produção: API hospedada na Vercel
+// Dev: auto-detecta plataforma (web → localhost, Android emulator → 10.0.2.2)
+const PRODUCTION_API = 'https://lettergram.vercel.app';
 const PHYSICAL_DEVICE_IP = ''; // ex: '192.168.1.10'
 
-export const API_BASE =
-  PHYSICAL_DEVICE_IP
-    ? `http://${PHYSICAL_DEVICE_IP}:8000`
-    : Platform.OS === 'web'
-    ? 'http://localhost:8000'
-    : 'http://10.0.2.2:8000'; // Android emulator → localhost da máquina
+const getDevUrl = () => {
+  if (PHYSICAL_DEVICE_IP) return `http://${PHYSICAL_DEVICE_IP}:8000`;
+  if (Platform.OS === 'web') return 'http://localhost:8000';
+  return 'http://10.0.2.2:8000'; // Android emulator → localhost da máquina
+};
+
+export const API_BASE = __DEV__ ? getDevUrl() : PRODUCTION_API;
 
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 });
 

@@ -2,6 +2,15 @@
 LetterGram API — Entry point.
 Inicia o servidor FastAPI com CORS aberto para o app mobile.
 """
+import sys
+from pathlib import Path
+
+# Garante que o diretório backend/ está no sys.path,
+# necessário para a Vercel (que executa a partir da raiz do projeto).
+_backend_dir = str(Path(__file__).resolve().parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router as api_router

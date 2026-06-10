@@ -2,11 +2,25 @@
 <img src="frontend/assets/logo-icon.png" height="60" alt="LetterGram Logo" />
 
 # LetterGram
+
+[![Deploy API](https://img.shields.io/badge/API-Vercel-black?logo=vercel)](https://lettergram.vercel.app)
+[![GitHub release](https://img.shields.io/github/v/release/wilsonwagn/lettergram?label=APK&color=green)](https://github.com/wilsonwagn/lettergram/releases/latest)
+[![Status](https://img.shields.io/badge/status-beta-yellow)]()
+
 **Transforme suas reviews do Letterboxd em Stories para o Instagram.**
 
 ## O que é
 
 LetterGram é uma ferramenta que combina o universo do cinema com o compartilhamento visual das redes sociais. Cole o link de qualquer review do Letterboxd (ex: `letterboxd.com/seuuser/film/nome-do-filme/`), e o app gera automaticamente um Story pronto para o Instagram — com pôster, nota, trecho da review e identidade visual personalizada.
+
+## 📲 Download
+
+| Plataforma | Link |
+|------------|------|
+| **Android (APK)** | [⬇️ Baixar última versão](https://github.com/wilsonwagn/lettergram/releases/latest) |
+| **API (Produção)** | [🌐 lettergram.vercel.app](https://lettergram.vercel.app) |
+
+> Para instalar o APK, habilite "Fontes desconhecidas" nas configurações do Android.
 
 ## Tecnologias
 
@@ -27,7 +41,7 @@ LetterGram é uma ferramenta que combina o universo do cinema com o compartilham
 - 📥 Importação de CSV exportado do Letterboxd
 - ✨ Interface mobile-first com design premium dark mode
 
-## Como rodar
+## Como rodar (desenvolvimento)
 
 ### Pré-requisitos
 - Python 3.10+
@@ -38,13 +52,13 @@ LetterGram é uma ferramenta que combina o universo do cinema com o compartilham
 ```bash
 make setup     # Cria venv e instala deps
 make backend   # Inicia API em http://localhost:8000
-make web       # Expo no browser
 ```
 
 ### Mobile
 ```bash
 make install   # npm install
 make app       # Expo Go (QR code)
+make web       # Expo no browser
 ```
 
 ### Testes
@@ -53,6 +67,22 @@ make test      # pytest no backend
 ```
 
 > Use `make help` para ver todos os comandos disponíveis.
+
+## Deploy
+
+### API (Vercel)
+```bash
+npm i -g vercel
+vercel          # Deploy automático
+```
+
+### APK (EAS Build)
+```bash
+npm i -g eas-cli
+cd mobile
+eas login
+eas build --platform android --profile preview
+```
 
 ## Estrutura do projeto
 
@@ -69,9 +99,17 @@ LetterGram/
 │   ├── services/         # API client + storage
 │   └── constants/        # Design system (tema)
 ├── Makefile              # Comandos de desenvolvimento
-└── vercel.json           # Deploy da API
+├── vercel.json           # Deploy da API
+└── mobile/eas.json       # Build do APK
 ```
 
 ## Status
 
 > ⚠️ **BETA** — Projeto em desenvolvimento ativo. Funcionalidades podem mudar.
+
+---
+
+<p align="center">
+  Feito com 🎬 por <a href="https://github.com/wilsonwagn">Wilson Wagner</a>
+</p>
+
