@@ -87,8 +87,10 @@ export default function StoryScreen() {
   const [showLetterboxd, setShowLetterboxd] = useState(true);
   const [fontSizeOffset, setFontSizeOffset] = useState(0);
   const [userSizeOffset, setUserSizeOffset] = useState(0);
-  const [exportAsSticker, setExportAsSticker] = useState(false);
+  const [stickerMode, setStickerMode] = useState(0);
   const viewShotRef = useRef<ViewShot>(null);
+
+  const STICKER_MODES = ['Normal', 'Sticker: Clean', 'Sticker: Glass', 'Sticker: Box'];
 
   // Animações
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -308,11 +310,11 @@ export default function StoryScreen() {
           {/* Tools */}
           <View style={styles.toolsRow}>
             <TouchableOpacity 
-              style={[styles.toolBtn, exportAsSticker && { backgroundColor: '#CCFF00' }]} 
-              onPress={() => setExportAsSticker(!exportAsSticker)}
+              style={[styles.toolBtn, stickerMode > 0 && { backgroundColor: '#CCFF00' }]} 
+              onPress={() => setStickerMode((prev) => (prev + 1) % 4)}
             >
-              <Text style={[styles.toolBtnText, exportAsSticker && { color: '#000' }]}>
-                {exportAsSticker ? 'Modo Sticker: ON' : 'Modo Sticker: OFF'}
+              <Text style={[styles.toolBtnText, stickerMode > 0 && { color: '#000' }]}>
+                {STICKER_MODES[stickerMode]}
               </Text>
             </TouchableOpacity>
 
@@ -365,11 +367,17 @@ export default function StoryScreen() {
           <ViewShot
             ref={viewShotRef}
             options={{ format: 'png', quality: 1.0, pixelRatio: 4 }}
-            style={[styles.viewShotWrap, exportAsSticker && { backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 }]}
+            style={[styles.viewShotWrap, stickerMode > 0 && { backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 }]}
           >
-            <View nativeID="story-card" style={[styles.storyCard, { width: PREVIEW_W, height: PREVIEW_MAX_H }, exportAsSticker && { backgroundColor: 'transparent' }]}>
+            <View nativeID="story-card" style={[
+              styles.storyCard, 
+              { width: PREVIEW_W, height: PREVIEW_MAX_H }, 
+              stickerMode === 1 && { backgroundColor: 'transparent', height: 'auto', minHeight: PREVIEW_MAX_H },
+              stickerMode === 2 && { backgroundColor: 'rgba(10,10,10,0.6)', borderRadius: 32, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', height: 'auto', minHeight: PREVIEW_MAX_H, padding: 16 },
+              stickerMode === 3 && { backgroundColor: 'rgba(10,10,10,0.8)', borderRadius: 32, borderWidth: 1, borderColor: accent, height: 'auto', minHeight: PREVIEW_MAX_H, padding: 16 }
+            ]}>
               {/* Background: poster blur */}
-              {!exportAsSticker && data.posterBase64 ? (
+              {stickerMode === 0 && data.posterBase64 ? (
                 <Image
                   source={{ uri: data.posterBase64 }}
                   style={StyleSheet.absoluteFill}
@@ -378,7 +386,7 @@ export default function StoryScreen() {
               ) : null}
 
               {/* Overlay gradient */}
-              {!exportAsSticker && (
+              {stickerMode === 0 && (
                 <LinearGradient
                   colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.95)']}
                   locations={[0, 0.35, 1]}
@@ -404,9 +412,11 @@ export default function StoryScreen() {
                       <Text style={styles.storyTitle} numberOfLines={3}>
                         {data.movieTitle}
                       </Text>
-                      <StarDisplay stars={data.stars} accent={accent} />
+                      <View style={{ marginTop: -2 }}>
+                        <StarDisplay stars={data.stars} accent={accent} />
+                      </View>
                       {data.username ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 0 }}>
                           {data.avatarBase64 ? (
                             <Image
                               source={{ uri: data.avatarBase64 }}
@@ -715,9 +725,10 @@ const styles = StyleSheet.create({
   },
   toolsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   toolBtn: {
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -735,6 +746,8 @@ const styles = StyleSheet.create({
   },
   fontControls: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
   },
   toolBtnText: {
