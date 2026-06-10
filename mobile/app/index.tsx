@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import ViewShot from 'react-native-view-shot';
+import { FontAwesome } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { fetchReview, ReviewData } from '../services/letterboxd';
@@ -40,13 +41,16 @@ const REVIEW_CHUNK_SIZE = 200;
 /** Estrelas visuais */
 function StarDisplay({ stars, accent }: { stars: number; accent: string }) {
   const full = Math.floor(stars);
-  const half = stars % 1 >= 0.5;
+  const half = stars % 1 !== 0; // Se tem resto, tem meia estrela
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <Text key={i} style={{ fontSize: 14, color: accent }}>
-          {i < full ? '★' : (i === full && half ? '½' : '☆')}
-        </Text>
+        <FontAwesome
+          key={i}
+          name={i < full ? 'star' : (i === full && half ? 'star-half' : 'star-o')}
+          size={12}
+          color={accent}
+        />
       ))}
     </View>
   );
@@ -80,8 +84,9 @@ export default function StoryScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedChunk, setSelectedChunk] = useState(0);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [showBrand, setShowBrand] = useState(true);
+  const [showBrand, setShowBrand] = useState(false);
   const [fontSizeOffset, setFontSizeOffset] = useState(0);
+  const [exportAsSticker, setExportAsSticker] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
 
   // Animações
@@ -149,7 +154,11 @@ export default function StoryScreen() {
         const htmlToImage = await import('html-to-image');
         const domNode = document.getElementById('story-card');
         if (!domNode) throw new Error('DOM node not found');
-        uri = await htmlToImage.toPng(domNode, { cacheBust: true, pixelRatio: 2 });
+        uri = await htmlToImage.toPng(domNode, { 
+          cacheBust: true, 
+          pixelRatio: 4, 
+          style: exportAsSticker ? { backgroundColor: 'transparent' } : {}
+        });
       } else {
         if (!viewShotRef.current) return;
         uri = await (viewShotRef.current as any).capture();
@@ -298,6 +307,15 @@ export default function StoryScreen() {
           {/* Tools */}
           <View style={styles.toolsRow}>
             <TouchableOpacity 
+              style={[styles.toolBtn, exportAsSticker && { backgroundColor: '#CCFF00' }]} 
+              onPress={() => setExportAsSticker(!exportAsSticker)}
+            >
+              <Text style={[styles.toolBtnText, exportAsSticker && { color: '#000' }]}>
+                {exportAsSticker ? 'Modo Sticker: ON' : 'Modo Sticker: OFF'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
               style={styles.toolBtn} 
               onPress={() => setShowBrand(!showBrand)}
             >
@@ -332,26 +350,27 @@ export default function StoryScreen() {
         >
           <ViewShot
             ref={viewShotRef}
-            options={{ format: 'png', quality: 1.0 }}
-            style={styles.viewShotWrap}
+            options={{ format: 'png', quality: 1.0, pixelRatio: 4 }}
+            style={[styles.viewShotWrap, exportAsSticker && { backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 }]}
           >
-            <View nativeID="story-card" style={[styles.storyCard, { width: PREVIEW_W, height: PREVIEW_MAX_H }]}>
+            <View nativeID="story-card" style={[styles.storyCard, { width: PREVIEW_W, height: PREVIEW_MAX_H }, exportAsSticker && { backgroundColor: 'transparent' }]}>
               {/* Background: poster blur */}
-              {data.posterBase64 ? (
+              {!exportAsSticker && data.posterBase64 ? (
                 <Image
                   source={{ uri: data.posterBase64 }}
                   style={StyleSheet.absoluteFill}
                   contentFit="cover"
-                  blurRadius={3}
                 />
               ) : null}
 
               {/* Overlay gradient */}
-              <LinearGradient
-                colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.95)']}
-                locations={[0, 0.35, 1]}
-                style={StyleSheet.absoluteFill}
-              />
+              {!exportAsSticker && (
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.95)']}
+                  locations={[0, 0.35, 1]}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
 
               {/* Conteúdo */}
               <View style={styles.storyContent}>
@@ -707,7 +726,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   viewShotWrap: {
-    borderRadius: 16,
     overflow: 'hidden',
     // Shadow do card
     shadowColor: '#000',
@@ -717,7 +735,6 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   storyCard: {
-    borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#0a0a0a',
   },
@@ -751,7 +768,6 @@ const styles = StyleSheet.create({
   storyPoster: {
     width: 60,
     height: 90,
-    borderRadius: 6,
   },
   storyMeta: {
     flex: 1,
