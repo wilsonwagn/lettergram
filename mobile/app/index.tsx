@@ -84,7 +84,7 @@ export default function StoryScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedChunk, setSelectedChunk] = useState(0);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const [showBrand, setShowBrand] = useState(false);
+  const [showLetterboxd, setShowLetterboxd] = useState(true);
   const [fontSizeOffset, setFontSizeOffset] = useState(0);
   const [exportAsSticker, setExportAsSticker] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
@@ -316,11 +316,11 @@ export default function StoryScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.toolBtn} 
-              onPress={() => setShowBrand(!showBrand)}
+              style={[styles.toolBtn, !showLetterboxd && { opacity: 0.5 }]} 
+              onPress={() => setShowLetterboxd(!showLetterboxd)}
             >
               <Text style={styles.toolBtnText}>
-                {showBrand ? 'Usar Avatar' : 'Usar Logo'}
+                {showLetterboxd ? 'Logo: ON' : 'Logo: OFF'}
               </Text>
             </TouchableOpacity>
 
@@ -374,55 +374,63 @@ export default function StoryScreen() {
 
               {/* Conteúdo */}
               <View style={styles.storyContent}>
-                <View style={styles.storyTop}>
-                  {showBrand ? (
-                    <Text style={[styles.storyBrand, { color: accent }]}>LetterGram</Text>
-                  ) : data.avatarBase64 ? (
-                    <Image
-                      source={{ uri: data.avatarBase64 }}
-                      style={styles.storyAvatar}
-                      contentFit="cover"
-                    />
-                  ) : null}
-                </View>
+                <View style={styles.storyTop} />
 
-                <View style={styles.storyMiddle}>
-                  {data.posterBase64 ? (
-                    <Image
-                      source={{ uri: data.posterBase64 }}
-                      style={styles.storyPoster}
-                      contentFit="cover"
-                    />
-                  ) : null}
-                  <View style={styles.storyMeta}>
-                    <Text style={styles.storyTitle} numberOfLines={2}>
-                      {data.movieTitle}
-                    </Text>
-                    <StarDisplay stars={data.stars} accent={accent} />
-                    {data.username ? (
-                      <Text style={[styles.storyUser, { color: accent }]}>
-                        @{data.username}
-                      </Text>
+                {/* Main Content Area: Poster + Meta + Review */}
+                <View style={{ flex: 1, justifyContent: 'center', gap: 16 }}>
+                  <View style={styles.storyMiddle}>
+                    {data.posterBase64 ? (
+                      <Image
+                        source={{ uri: data.posterBase64 }}
+                        style={styles.storyPoster}
+                        contentFit="cover"
+                      />
                     ) : null}
+                    <View style={styles.storyMeta}>
+                      <Text style={styles.storyTitle} numberOfLines={2}>
+                        {data.movieTitle}
+                      </Text>
+                      <StarDisplay stars={data.stars} accent={accent} />
+                      {data.username ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                          {data.avatarBase64 ? (
+                            <Image
+                              source={{ uri: data.avatarBase64 }}
+                              style={{ width: 14, height: 14, borderRadius: 7 }}
+                              contentFit="cover"
+                            />
+                          ) : null}
+                          <Text style={[styles.storyUser, { color: accent, fontSize: 9 }]}>
+                            {data.username.toUpperCase()}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
-                </View>
 
-                {displayText ? (
-                  <View style={[styles.reviewBubble, { borderLeftColor: accent }]}>
-                    <Text 
-                      style={[styles.reviewText, { fontSize: 11 + fontSizeOffset, lineHeight: 16 + fontSizeOffset }]} 
-                      numberOfLines={5}
-                    >
-                      "{displayText}"
-                    </Text>
+                  {displayText ? (
+                    <View style={[styles.reviewBubble, { borderLeftColor: accent }]}>
+                      <Text 
+                        style={[styles.reviewText, { fontSize: 11 + fontSizeOffset, lineHeight: 16 + fontSizeOffset }]} 
+                        numberOfLines={5}
+                      >
+                        "{displayText}"
+                      </Text>
+                    </View>
+                  ) : null}
+                {/* Footer Logo */}
+                {showLetterboxd && (
+                  <View style={styles.storyBottom}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ flexDirection: 'row', marginRight: 6 }}>
+                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#FF8000' }} />
+                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#00E054', marginLeft: -4 }} />
+                        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#40BCF4', marginLeft: -4 }} />
+                      </View>
+                      <Text style={{ color: '#fff', fontSize: 13, fontFamily: Typography.fontBold, letterSpacing: -0.5 }}>Letterboxd</Text>
+                    </View>
                   </View>
-                ) : null}
-
-                <View style={styles.storyBottom}>
-                  <View style={[styles.lbPill, { backgroundColor: accent }]}>
-                    <Text style={styles.lbPillText}>via Letterboxd</Text>
-                  </View>
-                </View>
+                )}
               </View>
             </View>
           </ViewShot>
@@ -797,17 +805,7 @@ const styles = StyleSheet.create({
   },
   storyBottom: {
     alignItems: 'center',
-  },
-  lbPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 100,
-  },
-  lbPillText: {
-    fontSize: 8,
-    fontFamily: Typography.fontBold,
-    color: '#000',
-    letterSpacing: 0.5,
+    paddingTop: 8,
   },
 
   // Chunk navigation
