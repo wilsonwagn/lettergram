@@ -11,11 +11,11 @@
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "backend/main.py" },
-    { "src": "/_expo/(.*)", "dest": "mobile/dist/_expo/$1" },
-    { "src": "/assets/(.*)", "dest": "mobile/dist/assets/$1" },
-    { "src": "/favicon.ico", "dest": "mobile/dist/favicon.ico" },
-    { "src": "/(.*\\.(js|css|png|jpg|svg|ttf|woff|woff2|json))$", "dest": "mobile/dist/$1" },
-    { "src": "/(.*)", "dest": "mobile/dist/index.html" }
+    { "src": "/api/(.*)", "dest": "/backend/main.py" },
+    { "src": "/_expo/(.*)", "dest": "/mobile/dist/_expo/$1" },
+    { "src": "/assets/(.*)", "dest": "/mobile/dist/assets/$1" },
+    { "src": "/favicon.ico", "dest": "/mobile/dist/favicon.ico" },
+    { "src": "/(.*\\.(js|css|png|jpg|svg|ttf|woff|woff2|json))$", "dest": "/mobile/dist/$1" },
+    { "src": "/(.*)", "dest": "/mobile/dist/index.html" }
   ]
 }
