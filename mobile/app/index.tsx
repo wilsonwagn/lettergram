@@ -45,7 +45,7 @@ function StarDisplay({ stars, accent }: { stars: number; accent: string }) {
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {Array.from({ length: 5 }).map((_, i) => (
         <Text key={i} style={{ fontSize: 14, color: accent }}>
-          {i < full ? '★' : (i === full && half ? '⯨' : '☆')}
+          {i < full ? '★' : (i === full && half ? '½' : '☆')}
         </Text>
       ))}
     </View>
@@ -80,6 +80,8 @@ export default function StoryScreen() {
   const [saving, setSaving] = useState(false);
   const [selectedChunk, setSelectedChunk] = useState(0);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [showBrand, setShowBrand] = useState(true);
+  const [fontSizeOffset, setFontSizeOffset] = useState(0);
   const viewShotRef = useRef<ViewShot>(null);
 
   // Animações
@@ -137,21 +139,33 @@ export default function StoryScreen() {
     }
   };
 
-  /** Baixa a imagem do Story na galeria */
+  /** Baixa a imagem do Story na galeria ou no Web */
   const handleDownload = async () => {
     if (!viewShotRef.current) return;
     setSaving(true);
     setDownloadSuccess(false);
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão negada', 'Precisamos de acesso à galeria para salvar a imagem.');
-        return;
-      }
       const uri = await (viewShotRef.current as any).capture();
-      await MediaLibrary.saveToLibraryAsync(uri);
-      setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 3000);
+      
+      if (Platform.OS === 'web') {
+        const link = document.createElement('a');
+        link.download = `lettergram-${data?.movieTitle.replace(/\s+/g, '-').toLowerCase() || 'story'}.png`;
+        link.href = uri;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setDownloadSuccess(true);
+        setTimeout(() => setDownloadSuccess(false), 3000);
+      } else {
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permissão negada', 'Precisamos de acesso à galeria para salvar a imagem.');
+          return;
+        }
+        await MediaLibrary.saveToLibraryAsync(uri);
+        setDownloadSuccess(true);
+        setTimeout(() => setDownloadSuccess(false), 3000);
+      }
     } catch {
       Alert.alert('Erro', 'Não foi possível salvar a imagem.');
     } finally {
@@ -255,20 +269,50 @@ export default function StoryScreen() {
           <View style={{ width: 60 }} />
         </View>
 
-        {/* Picker de cor */}
-        <View style={styles.accentRow}>
-          {ACCENT_OPTIONS.map(opt => (
-            <TouchableOpacity
-              key={opt.color}
-              style={[
-                styles.accentDot,
-                { backgroundColor: opt.color },
-                accent === opt.color && styles.accentDotActive,
-              ]}
-              onPress={() => setAccent(opt.color)}
-              activeOpacity={0.7}
-            />
-          ))}
+        {/* Controles: Cores, Header e Fonte */}
+        <View style={styles.controlsArea}>
+          {/* Picker de cor */}
+          <View style={styles.accentRow}>
+            {ACCENT_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.color}
+                style={[
+                  styles.accentDot,
+                  { backgroundColor: opt.color },
+                  accent === opt.color && styles.accentDotActive,
+                ]}
+                onPress={() => setAccent(opt.color)}
+                activeOpacity={0.7}
+              />
+            ))}
+          </View>
+
+          {/* Tools */}
+          <View style={styles.toolsRow}>
+            <TouchableOpacity 
+              style={styles.toolBtn} 
+              onPress={() => setShowBrand(!showBrand)}
+            >
+              <Text style={styles.toolBtnText}>
+                {showBrand ? 'Usar Avatar' : 'Usar Logo'}
+              </Text>
+            </TouchableOpacity>
+
+            <View style={styles.fontControls}>
+              <TouchableOpacity 
+                style={styles.toolBtnIcon} 
+                onPress={() => setFontSizeOffset(prev => Math.max(prev - 2, -4))}
+              >
+                <Text style={styles.toolBtnText}>A-</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.toolBtnIcon} 
+                onPress={() => setFontSizeOffset(prev => Math.min(prev + 2, 4))}
+              >
+                <Text style={styles.toolBtnText}>A+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
 
         {/* Preview do Story (animado) */}
@@ -304,7 +348,15 @@ export default function StoryScreen() {
               {/* Conteúdo */}
               <View style={styles.storyContent}>
                 <View style={styles.storyTop}>
-                  <Text style={[styles.storyBrand, { color: accent }]}>LetterGram</Text>
+                  {showBrand ? (
+                    <Text style={[styles.storyBrand, { color: accent }]}>LetterGram</Text>
+                  ) : data.avatarBase64 ? (
+                    <Image
+                      source={{ uri: data.avatarBase64 }}
+                      style={styles.storyAvatar}
+                      contentFit="cover"
+                    />
+                  ) : null}
                 </View>
 
                 <View style={styles.storyMiddle}>
@@ -330,7 +382,10 @@ export default function StoryScreen() {
 
                 {displayText ? (
                   <View style={[styles.reviewBubble, { borderLeftColor: accent }]}>
-                    <Text style={styles.reviewText} numberOfLines={5}>
+                    <Text 
+                      style={[styles.reviewText, { fontSize: 11 + fontSizeOffset, lineHeight: 16 + fontSizeOffset }]} 
+                      numberOfLines={5}
+                    >
                       "{displayText}"
                     </Text>
                   </View>
@@ -580,12 +635,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
 
-  // Accent picker
+  // Controles
+  controlsArea: {
+    paddingVertical: 8,
+    gap: 12,
+  },
   accentRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
-    paddingVertical: 10,
   },
   accentDot: {
     width: 22,
@@ -603,6 +661,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
+  },
+  toolsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+  },
+  toolBtn: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  toolBtnIcon: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    width: 32,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fontControls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  toolBtnText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11,
+    fontFamily: Typography.fontSemiBold,
   },
 
   // Preview
@@ -640,6 +727,13 @@ const styles = StyleSheet.create({
     letterSpacing: 2.5,
     textTransform: 'uppercase',
     opacity: 0.8,
+  },
+  storyAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   storyMiddle: {
     flexDirection: 'row',
