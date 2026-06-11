@@ -1,5 +1,7 @@
 
-<img src="frontend/assets/logo-icon.png" height="60" alt="LetterGram Logo" />
+<p align="center">
+  <img src="screenshot.png" width="700" alt="LetterGram — Tela Inicial" />
+</p>
 
 # LetterGram
 
