@@ -5,3 +5,7 @@ backend/venv
 backend/__pycache__
 backend/.pytest_cache
 .git
+
+# Força a inclusão do dist (pois ele está ignorado no .gitignore)
+!mobile/dist
+!mobile/dist/**

@@ -24,6 +24,14 @@
       "edgeToEdgeEnabled": true,
       "package": "com.lettergram.app"
     },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "LetterGram",
+      "shortName": "LetterGram",
+      "description": "Transforme suas reviews do Letterboxd em Stories incríveis para Instagram",
+      "backgroundColor": "#0A0A0A",
+      "themeColor": "#CCFF00"
+    },
     "plugins": [
       "expo-router",
       "expo-font",

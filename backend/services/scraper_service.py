@@ -22,6 +22,16 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
     if not url.startswith("http"):
         url = "https://" + url
 
+    # ── Validação: aceita apenas links do Letterboxd (ou boxd.it encurtados) ──
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    hostname = (parsed.hostname or "").lower().lstrip("www.")
+    if hostname not in ("letterboxd.com", "boxd.it"):
+        raise HTTPException(
+            status_code=400,
+            detail="Apenas links do Letterboxd são aceitos. Use URLs do tipo letterboxd.com/... ou boxd.it/..."
+        )
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Referer': 'https://letterboxd.com/'
@@ -39,6 +49,15 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
         print(f"❌ Erro ao acessar URL: {type(e).__name__} - {e}")
         raise HTTPException(
             status_code=400, detail=f"Erro ao acessar URL do Letterboxd: {str(e)}")
+
+    # Valida URL final (após seguir redirects de boxd.it etc)
+    final_parsed = urlparse(str(response.url))
+    final_hostname = (final_parsed.hostname or "").lower().lstrip("www.")
+    if final_hostname != "letterboxd.com":
+        raise HTTPException(
+            status_code=400,
+            detail="O link fornecido não redireciona para o Letterboxd. Apenas links do Letterboxd são aceitos."
+        )
 
     soup = BeautifulSoup(response.text, 'html.parser')
 

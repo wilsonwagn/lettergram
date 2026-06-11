@@ -7,8 +7,8 @@ import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, Dimensions, Platform,
-  KeyboardAvoidingView, Keyboard, TouchableWithoutFeedback,
-  Animated,
+  KeyboardAvoidingView, Keyboard,
+  Animated, ScrollView, Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ViewShot from 'react-native-view-shot';
 import { FontAwesome } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { fetchReview, ReviewData } from '../services/letterboxd';
 
@@ -34,23 +36,44 @@ const ACCENT_OPTIONS = [
   { color: '#FF4D9D', label: 'Rosa' },
   { color: '#B388FF', label: 'Lavanda' },
   { color: '#69FFA0', label: 'Menta' },
+  { color: '#FFFFFF', label: 'Branco' },
+  { color: '#FFD700', label: 'Amarelo' },
 ];
 
 const REVIEW_CHUNK_SIZE = 700;
 
-/** Estrelas visuais */
+/** Valida se a URL é do Letterboxd (direta ou encurtada boxd.it) */
+function isLetterboxdUrl(rawUrl: string): boolean {
+  let normalized = rawUrl.trim().toLowerCase();
+  // Remove protocolo para facilitar check
+  normalized = normalized.replace(/^https?:\/\//, '');
+  // Remove www.
+  normalized = normalized.replace(/^www\./, '');
+  // Aceita letterboxd.com/* ou boxd.it/*
+  return normalized.startsWith('letterboxd.com/') || normalized.startsWith('boxd.it/') || normalized === 'letterboxd.com' || normalized === 'boxd.it';
+}
+
+/** Remove o ano (YYYY) do título do filme */
+function stripYear(title: string): string {
+  return title.replace(/\s*\(\d{4}\)\s*$/, '').trim();
+}
+
+/** Estrelas visuais com efeito neon */
 function StarDisplay({ stars, accent }: { stars: number; accent: string }) {
   const full = Math.floor(stars);
-  const half = stars % 1 !== 0; // Se tem resto, tem meia estrela
+  const half = stars % 1 !== 0;
+
+  // Glow neon via textShadow (Web) ou textShadowColor (Native)
+  const neonStyle = Platform.OS === 'web'
+    ? { textShadow: `0 0 4px ${accent}, 0 0 8px ${accent}, 0 0 16px ${accent}40` } as any
+    : { textShadowColor: accent, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 };
+
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <FontAwesome
-          key={i}
-          name={i < full ? 'star' : (i === full && half ? 'star-half' : 'star-o')}
-          size={12}
-          color={accent}
-        />
+        <Text key={i} style={[{ fontSize: 13, color: i < full ? accent : (i === full && half ? accent : 'rgba(255,255,255,0.15)') }, i < full || (i === full && half) ? neonStyle : {}]}>
+          {i < full ? '★' : (i === full && half ? '★' : '☆')}
+        </Text>
       ))}
     </View>
   );
@@ -82,13 +105,17 @@ export default function StoryScreen() {
   const [data, setData] = useState<ReviewData | null>(null);
   const [accent, setAccent] = useState(ACCENT_OPTIONS[0].color);
   const [saving, setSaving] = useState(false);
+  const [savingPoster, setSavingPoster] = useState(false);
   const [selectedChunk, setSelectedChunk] = useState(0);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [posterDownloadSuccess, setPosterDownloadSuccess] = useState(false);
   const [showLetterboxd, setShowLetterboxd] = useState(true);
   const [fontSizeOffset, setFontSizeOffset] = useState(0);
   const [userSizeOffset, setUserSizeOffset] = useState(0);
   const [stickerMode, setStickerMode] = useState(0);
+  const [sharingStory, setSharingStory] = useState(false);
   const viewShotRef = useRef<ViewShot>(null);
+  const inputRef = useRef<TextInput>(null);
 
   const STICKER_MODES = ['Normal', 'Sticker: Clean', 'Sticker: Glass', 'Sticker: Box'];
 
@@ -126,11 +153,22 @@ export default function StoryScreen() {
       Alert.alert('Link vazio', 'Cole o link de uma review do Letterboxd.');
       return;
     }
+
+    // Validação: deve ser link do Letterboxd
+    if (!isLetterboxdUrl(trimmed)) {
+      Alert.alert(
+        '🔗 Link inválido',
+        'Por favor, insira apenas links do Letterboxd.\n\nExemplos válidos:\n• letterboxd.com/user/film/...\n• boxd.it/abc123'
+      );
+      return;
+    }
+
     Keyboard.dismiss();
     setLoading(true);
     setData(null);
     setSelectedChunk(0);
     setDownloadSuccess(false);
+    setPosterDownloadSuccess(false);
     try {
       const result = await fetchReview(trimmed);
       setData(result);
@@ -152,15 +190,21 @@ export default function StoryScreen() {
     setSaving(true);
     setDownloadSuccess(false);
     try {
-      let uri;
+      let uri: string;
       if (Platform.OS === 'web') {
         const htmlToImage = await import('html-to-image');
         const domNode = document.getElementById('story-card');
         if (!domNode) throw new Error('DOM node not found');
+        // Espera imagens carregarem antes de capturar
+        await new Promise(resolve => setTimeout(resolve, 300));
         uri = await htmlToImage.toPng(domNode, { 
           cacheBust: true, 
-          pixelRatio: 4, 
-          style: exportAsSticker ? { backgroundColor: 'transparent' } : {}
+          pixelRatio: 4,
+          style: stickerMode > 0 ? { backgroundColor: 'transparent' } : {},
+          filter: (node: HTMLElement) => {
+            // Garante que imagens base64 sejam incluídas
+            return true;
+          }
         });
       } else {
         if (!viewShotRef.current) return;
@@ -193,12 +237,123 @@ export default function StoryScreen() {
     }
   };
 
+  /** Baixa apenas a capa/poster do filme */
+  const handleDownloadPoster = async () => {
+    if (!data?.posterBase64) {
+      Alert.alert('Sem capa', 'Nenhuma capa disponível para download.');
+      return;
+    }
+    setSavingPoster(true);
+    setPosterDownloadSuccess(false);
+    try {
+      if (Platform.OS === 'web') {
+        const link = document.createElement('a');
+        link.download = `capa-${stripYear(data.movieTitle).replace(/\s+/g, '-').toLowerCase()}.jpg`;
+        link.href = data.posterBase64;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setPosterDownloadSuccess(true);
+        setTimeout(() => setPosterDownloadSuccess(false), 3000);
+      } else {
+        // No mobile, salvar base64 como arquivo e depois na galeria
+        const base64Data = data.posterBase64.split(',')[1];
+        const fileUri = FileSystem.cacheDirectory + `capa-${Date.now()}.jpg`;
+        await FileSystem.writeAsStringAsync(fileUri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+        const { status } = await MediaLibrary.requestPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permissão negada', 'Precisamos de acesso à galeria para salvar a imagem.');
+          return;
+        }
+        await MediaLibrary.saveToLibraryAsync(fileUri);
+        setPosterDownloadSuccess(true);
+        setTimeout(() => setPosterDownloadSuccess(false), 3000);
+      }
+    } catch {
+      Alert.alert('Erro', 'Não foi possível baixar a capa.');
+    } finally {
+      setSavingPoster(false);
+    }
+  };
+
+  /** Compartilha nos Stories do Instagram */
+  const handleShareInstagram = async () => {
+    setSharingStory(true);
+    try {
+      let uri: string;
+      if (Platform.OS === 'web') {
+        // Na Web, gera a imagem e tenta abrir Instagram
+        const htmlToImage = await import('html-to-image');
+        const domNode = document.getElementById('story-card');
+        if (!domNode) throw new Error('DOM node not found');
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const dataUrl = await htmlToImage.toPng(domNode, { cacheBust: true, pixelRatio: 4 });
+        // Converte data URL para blob
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const file = new File([blob], 'lettergram-story.png', { type: 'image/png' });
+        
+        // Tenta usar Web Share API (funciona em mobile browsers)
+        if (navigator.share && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'LetterGram Story',
+            text: 'Minha review no Letterboxd ✨',
+          });
+        } else {
+          // Fallback: baixa a imagem e instrui o usuário
+          const link = document.createElement('a');
+          link.download = 'lettergram-story.png';
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          Alert.alert(
+            '📸 Imagem salva!',
+            'A imagem foi baixada. Abra o Instagram e compartilhe nos Stories manualmente.'
+          );
+        }
+      } else {
+        // Mobile: captura imagem e abre Instagram Stories via deep link
+        if (!viewShotRef.current) return;
+        uri = await (viewShotRef.current as any).capture();
+        
+        // Tenta abrir Instagram Stories diretamente
+        const instagramUrl = `instagram-stories://share`;
+        const canOpen = await Linking.canOpenURL(instagramUrl);
+        
+        if (canOpen) {
+          // Em iOS/Android, usar o deep link do Instagram
+          await Linking.openURL(instagramUrl);
+        } else {
+          // Fallback: compartilha usando expo-sharing
+          const isAvailable = await Sharing.isAvailableAsync();
+          if (isAvailable) {
+            await Sharing.shareAsync(uri, {
+              mimeType: 'image/png',
+              dialogTitle: 'Compartilhar Story no Instagram',
+            });
+          } else {
+            Alert.alert('Instagram', 'Não foi possível abrir o Instagram. Verifique se o app está instalado.');
+          }
+        }
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        Alert.alert('Erro', 'Não foi possível compartilhar.');
+      }
+    } finally {
+      setSharingStory(false);
+    }
+  };
+
   /** Volta para o estado inicial */
   const handleReset = () => {
     setData(null);
     setUrl('');
     setSelectedChunk(0);
     setDownloadSuccess(false);
+    setPosterDownloadSuccess(false);
   };
 
   // ════════════════════════════════════════════════════
@@ -207,10 +362,14 @@ export default function StoryScreen() {
   if (!data) {
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView
-            style={styles.centeredContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.centeredContainer}
+            keyboardShouldPersistTaps="handled"
+            bounces={false}
           >
             {/* Glow decorativo de fundo */}
             <View style={styles.bgGlow} />
@@ -233,6 +392,7 @@ export default function StoryScreen() {
               <View style={styles.inputCard}>
                 <Text style={styles.inputLabel}>LINK DA REVIEW</Text>
                 <TextInput
+                  ref={inputRef}
                   style={styles.input}
                   placeholder="letterboxd.com/user/film/..."
                   placeholderTextColor="rgba(255,255,255,0.2)"
@@ -243,6 +403,9 @@ export default function StoryScreen() {
                   onSubmitEditing={handleFetch}
                   returnKeyType="go"
                   selectTextOnFocus
+                  keyboardType="url"
+                  textContentType="URL"
+                  autoComplete="off"
                 />
                 <TouchableOpacity
                   style={[styles.generateBtn, loading && styles.generateBtnLoading]}
@@ -266,8 +429,19 @@ export default function StoryScreen() {
                 Cole o link de uma review do Letterboxd{'\n'}e transforme em um Story para Instagram
               </Text>
             </View>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+
+            {/* Crédito */}
+            <TouchableOpacity
+              style={styles.creditFooter}
+              onPress={() => Linking.openURL('https://wilsonwagn.vercel.app/')}
+              activeOpacity={0.6}
+            >
+              <Text style={styles.creditText}>
+                feito por <Text style={styles.creditName}>Wilson Wagner</Text>
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -300,6 +474,8 @@ export default function StoryScreen() {
                   styles.accentDot,
                   { backgroundColor: opt.color },
                   accent === opt.color && styles.accentDotActive,
+                  // Borda cinza para a cor branca (visibilidade)
+                  opt.color === '#FFFFFF' && accent !== opt.color && { borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
                 ]}
                 onPress={() => setAccent(opt.color)}
                 activeOpacity={0.7}
@@ -410,25 +586,11 @@ export default function StoryScreen() {
                     ) : null}
                     <View style={styles.storyMeta}>
                       <Text style={styles.storyTitle} numberOfLines={3}>
-                        {data.movieTitle}
+                        {stripYear(data.movieTitle)}
                       </Text>
                       <View style={{ marginTop: -2 }}>
                         <StarDisplay stars={data.stars} accent={accent} />
                       </View>
-                      {data.username ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 0 }}>
-                          {data.avatarBase64 ? (
-                            <Image
-                              source={{ uri: data.avatarBase64 }}
-                              style={{ width: 12 + userSizeOffset, height: 12 + userSizeOffset, borderRadius: (12 + userSizeOffset) / 2 }}
-                              contentFit="cover"
-                            />
-                          ) : null}
-                          <Text style={[styles.storyUser, { color: accent, fontSize: 8 + userSizeOffset }]}>
-                            {data.username.toUpperCase()}
-                          </Text>
-                        </View>
-                      ) : null}
                     </View>
                   </View>
 
@@ -444,19 +606,38 @@ export default function StoryScreen() {
                   ) : null}
                 </View>
 
-                {/* Footer Logo */}
-                {showLetterboxd && (
-                  <View style={styles.storyBottom}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View style={{ flexDirection: 'row', marginRight: 6 }}>
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF8000' }} />
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#00E054', marginLeft: -3 }} />
-                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#40BCF4', marginLeft: -3 }} />
-                      </View>
-                      <Text style={{ color: '#fff', fontSize: 10, fontFamily: Typography.fontBold, letterSpacing: -0.5 }}>Letterboxd</Text>
+                {/* Footer: Review by + Logo */}
+                <View style={styles.storyFooter}>
+                  {/* Review by username */}
+                  {data.username ? (
+                    <View style={styles.reviewByContainer}>
+                      {data.avatarBase64 ? (
+                        <Image
+                          source={{ uri: data.avatarBase64 }}
+                          style={[styles.reviewByAvatar, { width: 18 + userSizeOffset, height: 18 + userSizeOffset, borderRadius: (18 + userSizeOffset) / 2 }]}
+                          contentFit="cover"
+                        />
+                      ) : null}
+                      <Text style={[styles.reviewByText, { fontSize: 8 + userSizeOffset }]}>
+                        review by <Text style={[styles.reviewByName, { color: accent }]}>{data.username}</Text>
+                      </Text>
                     </View>
-                  </View>
-                )}
+                  ) : null}
+
+                  {/* Logo Letterboxd */}
+                  {showLetterboxd && (
+                    <View style={styles.storyBottom}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <View style={{ flexDirection: 'row', marginRight: 6 }}>
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF8000' }} />
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#00E054', marginLeft: -3 }} />
+                          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#40BCF4', marginLeft: -3 }} />
+                        </View>
+                        <Text style={{ color: '#fff', fontSize: 10, fontFamily: Typography.fontBold, letterSpacing: -0.5 }}>Letterboxd</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
           </ViewShot>
@@ -494,25 +675,75 @@ export default function StoryScreen() {
           )}
         </Animated.View>
 
-        {/* Botão de download */}
+        {/* Botões de ação */}
+        <View style={styles.actionButtons}>
+          {/* Botão de download do story */}
+          <TouchableOpacity
+            style={[
+              styles.downloadBtn,
+              { shadowColor: accent, backgroundColor: accent },
+              downloadSuccess && styles.downloadBtnSuccess,
+              saving && styles.downloadBtnSaving,
+            ]}
+            onPress={handleDownload}
+            disabled={saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <ActivityIndicator color="#000" size="small" />
+            ) : downloadSuccess ? (
+              <Text style={styles.downloadBtnText}>✓ Salvo na galeria</Text>
+            ) : (
+              <Text style={styles.downloadBtnText}>Baixar Imagem</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Botões secundários: Baixar Capa + Instagram */}
+          <View style={styles.secondaryBtns}>
+            {/* Baixar capa */}
+            <TouchableOpacity
+              style={[
+                styles.secondaryBtn,
+                posterDownloadSuccess && { backgroundColor: '#00E096', borderColor: '#00E096' },
+              ]}
+              onPress={handleDownloadPoster}
+              disabled={savingPoster}
+              activeOpacity={0.85}
+            >
+              {savingPoster ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : posterDownloadSuccess ? (
+                <Text style={styles.secondaryBtnText}>✓ Capa salva</Text>
+              ) : (
+                <Text style={styles.secondaryBtnText}>🖼 Baixar Capa</Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Compartilhar no Instagram */}
+            <TouchableOpacity
+              style={[styles.secondaryBtn, styles.instagramBtn]}
+              onPress={handleShareInstagram}
+              disabled={sharingStory}
+              activeOpacity={0.85}
+            >
+              {sharingStory ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.secondaryBtnText}>📷 Stories</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Crédito */}
         <TouchableOpacity
-          style={[
-            styles.downloadBtn,
-            { shadowColor: accent, backgroundColor: accent },
-            downloadSuccess && styles.downloadBtnSuccess,
-            saving && styles.downloadBtnSaving,
-          ]}
-          onPress={handleDownload}
-          disabled={saving}
-          activeOpacity={0.85}
+          style={styles.creditFooterPreview}
+          onPress={() => Linking.openURL('https://wilsonwagn.vercel.app/')}
+          activeOpacity={0.6}
         >
-          {saving ? (
-            <ActivityIndicator color="#000" size="small" />
-          ) : downloadSuccess ? (
-            <Text style={styles.downloadBtnText}>✓ Salvo na galeria</Text>
-          ) : (
-            <Text style={styles.downloadBtnText}>Baixar Imagem</Text>
-          )}
+          <Text style={styles.creditTextSmall}>
+            feito por <Text style={styles.creditName}>Wilson Wagner</Text>
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -531,10 +762,11 @@ const styles = StyleSheet.create({
   // ESTADO 1: Tela centralizada (sem dados)
   // ══════════════════════════════════════════
   centeredContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
+    paddingBottom: 24,
   },
   bgGlow: {
     position: 'absolute',
@@ -664,6 +896,32 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  // Credit footer
+  creditFooter: {
+    marginTop: 40,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  creditFooterPreview: {
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  creditText: {
+    fontSize: 11,
+    fontFamily: Typography.fontRegular,
+    color: 'rgba(255,255,255,0.2)',
+  },
+  creditTextSmall: {
+    fontSize: 9,
+    fontFamily: Typography.fontRegular,
+    color: 'rgba(255,255,255,0.15)',
+  },
+  creditName: {
+    fontFamily: Typography.fontSemiBold,
+    color: 'rgba(255,255,255,0.35)',
+    textDecorationLine: 'underline',
+  },
+
   // ══════════════════════════════════════════
   // ESTADO 2: Preview (com dados)
   // ══════════════════════════════════════════
@@ -705,6 +963,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 12,
+    flexWrap: 'wrap',
   },
   accentDot: {
     width: 22,
@@ -834,9 +1093,32 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     lineHeight: 16,
   },
+
+  // Footer do Story (review by + logo)
+  storyFooter: {
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 8,
+  },
+  reviewByContainer: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  reviewByAvatar: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  reviewByText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontFamily: Typography.fontRegular,
+    fontSize: 8,
+  },
+  reviewByName: {
+    fontFamily: Typography.fontSemiBold,
+  },
   storyBottom: {
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 0,
   },
 
   // Chunk navigation
@@ -873,14 +1155,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
   },
 
+  // Action buttons area
+  actionButtons: {
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+
   // Download button
   downloadBtn: {
     borderRadius: 14,
     height: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
-    marginBottom: 8,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -898,5 +1185,30 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontBold,
     color: '#000',
     letterSpacing: 0.3,
+  },
+
+  // Secondary buttons row
+  secondaryBtns: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  secondaryBtn: {
+    flex: 1,
+    borderRadius: 12,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  instagramBtn: {
+    borderColor: 'rgba(225,48,108,0.3)',
+    backgroundColor: 'rgba(225,48,108,0.1)',
+  },
+  secondaryBtnText: {
+    fontSize: 12,
+    fontFamily: Typography.fontSemiBold,
+    color: 'rgba(255,255,255,0.8)',
   },
 });
