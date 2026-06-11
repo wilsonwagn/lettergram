@@ -71,15 +71,16 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
         og_title = soup.find("meta", property="og:title")
         title_raw = og_title["content"] if og_title else ""
 
-        # Remove prefixos como "A ★★★★ review of" ou "username's review of"
-        movie_title = re.sub(r'^.*?\breview\s+of\s+', '',
+        # Remove prefixos como "A ★★★★ review of", "username's review of" ou "diary entry for"
+        movie_title = re.sub(r'^.*?\b(review\s+of|diary\s+entry\s+for)\s+', '',
                              title_raw, flags=re.IGNORECASE | re.UNICODE)
         movie_title = movie_title.split(" - ")[0].strip()
 
         # Fallback se o regex não limpou tudo
         if "review of " in movie_title.lower():
-            movie_title = movie_title.lower().split(
-                "review of ")[-1].capitalize()
+            movie_title = movie_title.lower().split("review of ")[-1].capitalize()
+        elif "diary entry for " in movie_title.lower():
+            movie_title = movie_title.lower().split("diary entry for ")[-1].capitalize()
 
         # ── Texto da review ──────────────────────────────────
         review_div = soup.find("div", class_="review bodytext")
@@ -90,7 +91,21 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
         else:
             # Fallback: usa og:description
             og_desc = soup.find("meta", property="og:description")
-            review_text = og_desc["content"] if og_desc else ""
+            fallback_text = og_desc["content"] if og_desc else ""
+            
+            # Limpa textos genéricos do Letterboxd para diários sem review
+            # Ex: "A ★★★½ diary entry for Send Help" ou "Watched on..."
+            is_generic = re.match(r'^(A\s+)?(★+½?\s+)?(diary entry for|review of)\s+', fallback_text, flags=re.IGNORECASE) or \
+                         re.match(r'^Watched on\s+', fallback_text, flags=re.IGNORECASE)
+            
+            if is_generic:
+                if ":" in fallback_text:
+                    # Se tiver ":", a review de verdade costuma estar depois
+                    review_text = fallback_text.split(":", 1)[1].strip()
+                else:
+                    review_text = ""
+            else:
+                review_text = fallback_text
 
         # ── Nota em estrelas ─────────────────────────────────
         rating_span = soup.find("span", class_="rating")
