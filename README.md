@@ -15,12 +15,12 @@
 
 LetterGram é uma ferramenta que combina o universo do cinema com o compartilhamento visual das redes sociais. Cole o link de qualquer review do Letterboxd (ex: `letterboxd.com/seuuser/film/nome-do-filme/`), e o app gera automaticamente um Story pronto para o Instagram — com pôster, nota, trecho da review e identidade visual personalizada.
 
-## 📲 Download
+## Download
 
 | Plataforma | Link |
 |------------|------|
-| **Android (APK)** | [⬇️ Baixar última versão](https://github.com/wilsonwagn/lettergram/releases/latest) |
-| **API (Produção)** | [🌐 lettergram.vercel.app](https://lettergram.vercel.app) |
+| **Android (APK)** | [Baixar última versão](https://github.com/wilsonwagn/lettergram/releases/latest) |
+| **API (Produção)** | [lettergram.vercel.app](https://lettergram.vercel.app) |
 
 > Para instalar o APK, habilite "Fontes desconhecidas" nas configurações do Android.
 
@@ -36,12 +36,12 @@ LetterGram é uma ferramenta que combina o universo do cinema com o compartilham
 
 ## Funcionalidades
 
-- 🎬 Extração automática de review, pôster, estrelas e perfil do Letterboxd
-- 🎨 Editor visual com cores de destaque personalizáveis
-- 📲 Exportação do Story como imagem PNG de alta resolução
-- 📊 Recap anual com estatísticas, gráfico mensal e top filmes
-- 📥 Importação de CSV exportado do Letterboxd
-- ✨ Interface mobile-first com design premium dark mode
+- Extração automática de review, pôster, estrelas e perfil do Letterboxd
+- Editor visual com cores de destaque personalizáveis
+- Exportação do Story como imagem PNG de alta resolução
+- Recap anual com estatísticas, gráfico mensal e top filmes
+- Importação de CSV exportado do Letterboxd
+- Interface mobile-first com design premium dark mode
 
 ## Como rodar (desenvolvimento)
 
@@ -70,48 +70,8 @@ make test      # pytest no backend
 
 > Use `make help` para ver todos os comandos disponíveis.
 
-## Deploy
-
-### API (Vercel)
-```bash
-npm i -g vercel
-vercel          # Deploy automático
-```
-
-### APK (EAS Build)
-```bash
-npm i -g eas-cli
-cd mobile
-eas login
-eas build --platform android --profile preview
-```
-
-## Estrutura do projeto
-
-```
-LetterGram/
-├── backend/              # API FastAPI (scraping do Letterboxd)
-│   ├── api/routes.py     # Rotas REST
-│   ├── services/         # Lógica de scraping
-│   ├── models/schemas.py # Schemas Pydantic
-│   └── tests/            # Testes pytest
-├── mobile/               # App Expo/React Native
-│   ├── app/              # Telas (expo-router)
-│   ├── components/       # Componentes reutilizáveis
-│   ├── services/         # API client + storage
-│   └── constants/        # Design system (tema)
-├── Makefile              # Comandos de desenvolvimento
-├── vercel.json           # Deploy da API
-└── mobile/eas.json       # Build do APK
-```
-
-## Status
-
-> ⚠️ **BETA** — Projeto em desenvolvimento ativo. Funcionalidades podem mudar.
-
 ---
 
 <p align="center">
-  Feito com 🎬 por <a href="https://github.com/wilsonwagn">Wilson Wagner</a>
+  Feito por <a href="https://github.com/wilsonwagn">Wilson Wagner</a>
 </p>
-
