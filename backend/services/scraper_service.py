@@ -3,12 +3,88 @@ Scraper de reviews individuais do Letterboxd.
 Recebe a URL de uma review e retorna título, nota, texto, poster e avatar.
 Usa requests + BeautifulSoup para parsing do HTML.
 """
+import logging
 import requests
 import base64
 import re
+from io import BytesIO
+from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 from models.schemas import ReviewResponse
+
+logger = logging.getLogger(__name__)
+
+# Domínios permitidos para download de imagens (proteção SSRF)
+ALLOWED_IMAGE_DOMAINS = {
+    'letterboxd.com',
+    'a.ltrbxd.com',         # CDN de avatares
+    's.ltrbxd.com',         # CDN de posters
+    'image.tmdb.org',       # TMDB (posters)
+    'www.gravatar.com',     # Avatares Gravatar
+    'secure.gravatar.com',
+}
+
+# Tamanho máximo da imagem para compressão (largura em px)
+POSTER_MAX_WIDTH = 600
+AVATAR_MAX_WIDTH = 200
+
+
+def _is_allowed_image_url(url: str) -> bool:
+    """Valida que a URL da imagem é de um domínio permitido (proteção SSRF)."""
+    try:
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower().lstrip("www.")
+        return any(hostname == d or hostname.endswith("." + d) for d in ALLOWED_IMAGE_DOMAINS)
+    except Exception:
+        return False
+
+
+def _download_image_as_base64(session: requests.Session, url: str, max_width: int = POSTER_MAX_WIDTH) -> str:
+    """
+    Baixa imagem, comprime com Pillow se disponível, e retorna como data URI base64.
+    Se Pillow não estiver instalado, retorna a imagem original.
+    Mantém boa qualidade (85%) para downloads.
+    """
+    if not url or not _is_allowed_image_url(url):
+        if url:
+            logger.warning(f"URL de imagem bloqueada (SSRF): {url}")
+        return ""
+    try:
+        r = session.get(url, timeout=8)
+        if r.status_code != 200:
+            logger.warning(f"Erro ao baixar imagem: status {r.status_code} - {url}")
+            return ""
+
+        image_data = r.content
+        content_type = r.headers.get('content-type', 'image/jpeg')
+
+        # Tenta comprimir com Pillow (se disponível)
+        try:
+            from PIL import Image as PILImage
+            img = PILImage.open(BytesIO(image_data))
+
+            # Redimensiona se maior que max_width mantendo proporção
+            if img.width > max_width:
+                ratio = max_width / img.width
+                new_size = (max_width, int(img.height * ratio))
+                img = img.resize(new_size, PILImage.LANCZOS)
+
+            # Salva como JPEG com boa qualidade
+            output = BytesIO()
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            image_data = output.getvalue()
+            content_type = 'image/jpeg'
+        except ImportError:
+            pass  # Pillow não instalado — usa imagem original
+
+        encoded = base64.b64encode(image_data).decode('utf-8')
+        return f"data:{content_type};base64,{encoded}"
+    except Exception as e:
+        logger.error(f"Erro ao converter imagem: {type(e).__name__} - {e}")
+        return ""
 
 
 def extract_letterboxd_review(url: str) -> ReviewResponse:
@@ -16,14 +92,13 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
     Scraping completo de uma review do Letterboxd.
     Extrai: título do filme, texto da review, estrelas, poster (base64) e avatar.
     """
-    print(f"\n🔍 Iniciando scraping de: {url}")
+    logger.info(f"Iniciando scraping de: {url}")
 
     # Garante protocolo https
     if not url.startswith("http"):
         url = "https://" + url
 
     # ── Validação: aceita apenas links do Letterboxd (ou boxd.it encurtados) ──
-    from urllib.parse import urlparse
     parsed = urlparse(url)
     hostname = (parsed.hostname or "").lower().lstrip("www.")
     if hostname not in ("letterboxd.com", "boxd.it"):
@@ -44,9 +119,9 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
     try:
         response = session.get(url, allow_redirects=True, timeout=10)
         response.raise_for_status()
-        print(f"✅ Página carregada ({len(response.text)} bytes)")
+        logger.info(f"Página carregada ({len(response.text)} bytes)")
     except Exception as e:
-        print(f"❌ Erro ao acessar URL: {type(e).__name__} - {e}")
+        logger.error(f"Erro ao acessar URL: {type(e).__name__} - {e}")
         raise HTTPException(
             status_code=400, detail=f"Erro ao acessar URL do Letterboxd: {str(e)}")
 
@@ -132,7 +207,7 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
                 desc_text = og_desc_meta.get("content", "")
                 if "★" in desc_text:
                     stars = desc_text.count("★") + (0.5 if "½" in desc_text else 0)
-                    print(f"⭐ Estrelas extraídas do og:description: {stars}")
+                    logger.info(f"Estrelas extraídas do og:description: {stars}")
 
         # ── Autor da review ──────────────────────────────────
         author = ""
@@ -146,20 +221,8 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
         if avatar_link:
             avatar_img = avatar_link.find("img")
             if avatar_img and avatar_img.get("src"):
-                print(f"🎭 Tentando baixar avatar: {avatar_img['src'][:50]}...")
-                try:
-                    av_res = session.get(avatar_img["src"], timeout=5)
-                    if av_res.status_code == 200:
-                        av_content_type = av_res.headers.get(
-                            'content-type', 'image/jpeg')
-                        av_encoded = base64.b64encode(
-                            av_res.content).decode('utf-8')
-                        avatar_base64 = f"data:{av_content_type};base64,{av_encoded}"
-                        print(f"   ✅ Avatar convertido ({len(av_encoded)} chars)")
-                    else:
-                        print(f"   ❌ Status {av_res.status_code}")
-                except Exception as e:
-                    print(f"   ❌ Erro: {type(e).__name__} - {e}")
+                logger.info(f"Baixando avatar: {avatar_img['src'][:50]}...")
+                avatar_base64 = _download_image_as_base64(session, avatar_img["src"], max_width=AVATAR_MAX_WIDTH)
 
         else:
             # Fallback: twitter:creator meta tag
@@ -174,19 +237,8 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
         og_image = soup.find("meta", property="og:image")
         if og_image:
             poster_url = og_image["content"]
-            print(f"📸 Tentando baixar poster: {poster_url}")
-            try:
-                img_res = session.get(poster_url, timeout=5)
-                if img_res.status_code == 200:
-                    content_type = img_res.headers.get(
-                        'content-type', 'image/jpeg')
-                    encoded = base64.b64encode(img_res.content).decode('utf-8')
-                    poster_base64 = f"data:{content_type};base64,{encoded}"
-                    print(f"   ✅ Poster convertido para Base64 ({len(encoded)} chars)")
-                else:
-                    print(f"   ❌ Status {img_res.status_code}")
-            except Exception as e:
-                print(f"   ❌ Erro ao converter poster: {type(e).__name__} - {e}")
+            logger.info(f"Baixando poster: {poster_url}")
+            poster_base64 = _download_image_as_base64(session, poster_url, max_width=POSTER_MAX_WIDTH)
 
         # Fallback: extrai username da URL final
         if not author:
@@ -195,7 +247,7 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
                 parts = final_url.split("/")
                 if "letterboxd.com" in parts[2]:
                     author = parts[3]
-            except:
+            except Exception:
                 pass
 
         return ReviewResponse(
@@ -208,6 +260,9 @@ def extract_letterboxd_review(url: str) -> ReviewResponse:
             avatarBase64=avatar_base64,
             originalUrl=url
         )
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Erro crítico ao raspar dados: {type(e).__name__} - {e}")
         raise HTTPException(
             status_code=500, detail=f"Erro crítico ao raspar dados da página html: {str(e)}")

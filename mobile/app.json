@@ -2,7 +2,7 @@
   "expo": {
     "name": "LetterGram",
     "slug": "lettergram",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -22,7 +22,17 @@
         "backgroundColor": "#0A0A0A"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.lettergram.app"
+      "package": "com.lettergram.app",
+      "versionCode": 2,
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -42,13 +52,13 @@
           "savePhotosPermission": "Allow LetterGram to save images to your gallery.",
           "isAccessMediaLocationEnabled": true
         }
-      ],
-      [
-        "expo-document-picker",
-        {
-          "iCloudContainerEnvironment": "Production"
-        }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "af1ec231-f835-48b0-bb42-79702282c278"
+      }
+    }
   }
 }

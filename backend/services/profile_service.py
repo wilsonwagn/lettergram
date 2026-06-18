@@ -2,14 +2,33 @@
 Serviços de scraping de perfil e diário do Letterboxd.
 Usa sessão com cookies reais para evitar bloqueio 403.
 """
+import logging
 import requests
 import base64
 import re
 import time
 import random
+from io import BytesIO
+from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 from models.schemas import ProfileResponse, DiaryResponse, DiaryEntry, FavoriteFilm
+
+logger = logging.getLogger(__name__)
+
+# Domínios permitidos para download de imagens (proteção SSRF)
+ALLOWED_IMAGE_DOMAINS = {
+    'letterboxd.com',
+    'a.ltrbxd.com',
+    's.ltrbxd.com',
+    'image.tmdb.org',
+    'www.gravatar.com',
+    'secure.gravatar.com',
+}
+
+# Tamanho máximo das imagens
+POSTER_MAX_WIDTH = 600
+AVATAR_MAX_WIDTH = 200
 
 # Headers que imitam um navegador Chrome real (evita 403)
 HEADERS = {
@@ -36,6 +55,16 @@ HEADERS = {
 }
 
 
+def _is_allowed_image_url(url: str) -> bool:
+    """Valida que a URL da imagem é de um domínio permitido (proteção SSRF)."""
+    try:
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").lower().lstrip("www.")
+        return any(hostname == d or hostname.endswith("." + d) for d in ALLOWED_IMAGE_DOMAINS)
+    except Exception:
+        return False
+
+
 def _session() -> requests.Session:
     """Cria sessão com cookies reais visitando a homepage primeiro."""
     s = requests.Session()
@@ -52,19 +81,49 @@ def _session() -> requests.Session:
     return s
 
 
-def _image_to_base64(session: requests.Session, url: str) -> str:
-    """Baixa imagem e converte para data URI base64."""
+def _image_to_base64(session: requests.Session, url: str, max_width: int = POSTER_MAX_WIDTH) -> str:
+    """
+    Baixa imagem, comprime com Pillow se disponível, e retorna como data URI base64.
+    Valida domínio para proteção contra SSRF.
+    """
     if not url:
+        return ""
+    if not _is_allowed_image_url(url):
+        logger.warning(f"URL de imagem bloqueada (SSRF): {url}")
         return ""
     try:
         r = session.get(url, timeout=8)
-        if r.status_code == 200:
-            ct = r.headers.get('content-type', 'image/jpeg')
-            enc = base64.b64encode(r.content).decode('utf-8')
-            return f"data:{ct};base64,{enc}"
-    except Exception:
-        pass
-    return ""
+        if r.status_code != 200:
+            logger.warning(f"Erro ao baixar imagem: status {r.status_code}")
+            return ""
+
+        image_data = r.content
+        content_type = r.headers.get('content-type', 'image/jpeg')
+
+        # Tenta comprimir com Pillow (se disponível)
+        try:
+            from PIL import Image as PILImage
+            img = PILImage.open(BytesIO(image_data))
+
+            if img.width > max_width:
+                ratio = max_width / img.width
+                new_size = (max_width, int(img.height * ratio))
+                img = img.resize(new_size, PILImage.LANCZOS)
+
+            output = BytesIO()
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            image_data = output.getvalue()
+            content_type = 'image/jpeg'
+        except ImportError:
+            pass
+
+        enc = base64.b64encode(image_data).decode('utf-8')
+        return f"data:{content_type};base64,{enc}"
+    except Exception as e:
+        logger.error(f"Erro ao converter imagem: {type(e).__name__} - {e}")
+        return ""
 
 
 def _parse_stars(text: str) -> float:
@@ -119,7 +178,7 @@ def scrape_profile(username: str) -> ProfileResponse:
         img = avatar_img.find('img')
         if img and img.get('src'):
             avatar_url = img['src']
-            avatar_b64 = _image_to_base64(session, avatar_url)
+            avatar_b64 = _image_to_base64(session, avatar_url, max_width=AVATAR_MAX_WIDTH)
 
     # Fallback: og:image pode ser o avatar
     if not avatar_url:
@@ -290,7 +349,8 @@ def scrape_diary(username: str, page: int = 1) -> DiaryResponse:
                     reviewUrl=review_url,
                     letterboxdUri=letterboxd_uri,
                 ))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Erro ao processar entrada do diário: {type(e).__name__} - {e}")
             continue
 
     return DiaryResponse(entries=entries, page=page, username=username)

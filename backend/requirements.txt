@@ -1,5 +1,7 @@
-fastapi
-uvicorn
-beautifulsoup4
-requests
-pydantic
+fastapi==0.115.0
+uvicorn==0.31.0
+beautifulsoup4==4.12.3
+requests==2.32.3
+pydantic==2.9.0
+slowapi==0.1.9
+Pillow==11.1.0

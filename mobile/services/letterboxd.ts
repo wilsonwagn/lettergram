@@ -3,6 +3,7 @@
  * Comunica com o backend FastAPI e processa dados (recap, CSV parser).
  */
 import axios from 'axios';
+import axiosRetry from 'axios-retry';
 import { Platform } from 'react-native';
 
 // ─── Backend URL ────────────────────────────────────────────────────────────
@@ -19,7 +20,18 @@ const getDevUrl = () => {
 
 export const API_BASE = __DEV__ ? getDevUrl() : PRODUCTION_API;
 
-const api = axios.create({ baseURL: API_BASE, timeout: 20000 });
+const api = axios.create({ baseURL: API_BASE, timeout: 15000 });
+
+// Retry automático: 2 tentativas com backoff exponencial
+axiosRetry(api, {
+  retries: 2,
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: (error) => {
+    // Retry em erros de rede ou 5xx (servidor temporariamente indisponível)
+    return axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+      (error.response?.status !== undefined && error.response.status >= 500);
+  },
+});
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
