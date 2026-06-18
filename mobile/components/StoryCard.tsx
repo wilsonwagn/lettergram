@@ -24,6 +24,8 @@ interface StoryCardProps {
   textAlign: 'left' | 'center' | 'right' | 'justify';
   isBold: boolean;
   isSticker: boolean;
+  /** Nível de escurecimento da capa de fundo (0–100). Apenas modo Normal. */
+  darknessLevel: number;
 }
 
 /** Remove o ano (YYYY) do título do filme */
@@ -59,6 +61,7 @@ export function StoryCard({
   data, displayText, accent, stickerMode,
   showLetterboxd, fontSizeOffset, titleSizeOffset,
   userSizeOffset, textAlign, isBold, isSticker,
+  darknessLevel,
 }: StoryCardProps) {
   const isSolid = stickerMode >= 4;
   const solidTextColor = getSolidTextColor(stickerMode);
@@ -73,16 +76,28 @@ export function StoryCard({
         <Image source={{ uri: data.posterBase64 }} style={StyleSheet.absoluteFill} contentFit="cover" />
       ) : null}
 
-      {/* Overlay gradient — apenas modo Normal */}
-      {stickerMode === 0 && (
-        <LinearGradient
-          colors={hasReviewText
-            ? ['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.95)']
-            : ['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.3)']}
-          locations={hasReviewText ? [0, 0.35, 1] : [0, 0.5, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-      )}
+      {/* Overlay gradient — apenas modo Normal, controlado pelo darknessLevel */}
+      {stickerMode === 0 && (() => {
+        const d = darknessLevel / 100; // 0..1
+        const colors: [string, string, string] = hasReviewText
+          ? [
+              `rgba(0,0,0,${(0.05 + d * 0.95).toFixed(2)})`,
+              `rgba(0,0,0,${(0.15 + d * 0.85).toFixed(2)})`,
+              `rgba(0,0,0,${(0.50 + d * 0.50).toFixed(2)})`,
+            ]
+          : [
+              `rgba(0,0,0,${(0.05 + d * 0.95).toFixed(2)})`,
+              `rgba(0,0,0,${(0.10 + d * 0.90).toFixed(2)})`,
+              `rgba(0,0,0,${(0.05 + d * 0.95).toFixed(2)})`,
+            ];
+        return (
+          <LinearGradient
+            colors={colors}
+            locations={hasReviewText ? [0, 0.35, 1] : [0, 0.5, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        );
+      })()}
 
       {/* Conteúdo */}
       <View style={[

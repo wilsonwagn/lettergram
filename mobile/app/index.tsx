@@ -18,6 +18,7 @@ import { InputScreen } from '../components/InputScreen';
 import { StoryCard } from '../components/StoryCard';
 import { AccentPicker } from '../components/AccentPicker';
 import { ToolsBar } from '../components/ToolsBar';
+import { DarknessSlider } from '../components/DarknessSlider';
 import { useReviewChunks } from '../hooks/useReviewChunks';
 import { useStoryDownload } from '../hooks/useStoryDownload';
 
@@ -50,6 +51,7 @@ export default function StoryScreen() {
   const [textAlign, setTextAlign] = useState<TextAlignOption>('justify');
   const [isBold, setIsBold] = useState(false);
   const [overflowWarning, setOverflowWarning] = useState(false);
+  const [darknessLevel, setDarknessLevel] = useState(55);
 
   // ── Hooks customizados ──────────────────────────────────
   const isSticker = stickerMode > 0;
@@ -186,6 +188,15 @@ export default function StoryScreen() {
           onToggleBold={() => setIsBold(!isBold)}
         />
 
+        {/* Slider de escurecimento — apenas modo Normal */}
+        {stickerMode === 0 && (
+          <DarknessSlider
+            value={darknessLevel}
+            onChange={setDarknessLevel}
+            accent={accent}
+          />
+        )}
+
         {/* Overflow warning */}
         {overflowWarning && (
           <View style={styles.warningBar}>
@@ -212,6 +223,7 @@ export default function StoryScreen() {
               textAlign={textAlign}
               isBold={isBold}
               isSticker={isSticker}
+              darknessLevel={darknessLevel}
             />
           </ViewShot>
 
