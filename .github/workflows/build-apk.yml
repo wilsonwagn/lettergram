@@ -1,0 +1,111 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on version tags (e.g., v1.1.0)
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Tag/Versão do Release (ex: 1.1.0) - Se vazio, usará a versão do mobile/app.json'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Build APK and Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to create and upload releases
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'mobile/package-lock.json'
+
+      - name: Setup Expo & EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          working-directory: mobile
+
+      - name: Install Dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Determine Release Tag & Version
+        id: info
+        working-directory: mobile
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.version }}" ]; then
+              TAG_NAME="v${{ github.event.inputs.version }}"
+              VERSION_NAME="${{ github.event.inputs.version }}"
+            else
+              # Extract from app.json
+              VERSION_NAME=$(jq -r '.expo.version' app.json)
+              TAG_NAME="v$VERSION_NAME"
+            fi
+          else
+            # Triggered by tag push (e.g., v1.1.0)
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION_NAME="${TAG_NAME#v}" # remove leading 'v'
+          fi
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "Utilizando Tag: $TAG_NAME, Versão: $VERSION_NAME"
+
+      - name: Build Android APK (EAS Cloud)
+        working-directory: mobile
+        run: |
+          echo "Iniciando compilação do APK no EAS..."
+          eas build --platform android --profile preview --non-interactive --wait --json > build.json
+          cat build.json
+
+      - name: Download APK Artifact
+        working-directory: mobile
+        run: |
+          echo "Extraindo URL de download do APK..."
+          # Selects the ANDROID platform build and grabs the artifact URL
+          APK_URL=$(jq -r '.[] | select(.platform=="ANDROID") | .artifacts.applicationArchiveUrl' build.json)
+          if [ -z "$APK_URL" ] || [ "$APK_URL" = "null" ]; then
+            echo "Erro: URL do APK não encontrada no JSON de build."
+            exit 1
+          fi
+          echo "Baixando APK de: $APK_URL"
+          curl -L "$APK_URL" -o "LetterGram-${{ steps.info.outputs.version_name }}.apk"
+          echo "Tamanho do arquivo baixado:"
+          ls -lh "LetterGram-${{ steps.info.outputs.version_name }}.apk"
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.info.outputs.tag_name }}
+          name: "LetterGram ${{ steps.info.outputs.tag_name }}"
+          body: |
+            ## LetterGram ${{ steps.info.outputs.tag_name }}
+            
+            Versão gerada automaticamente através do GitHub Actions utilizando Expo EAS Build.
+            
+            ### Novidades
+            - Geração automática de APK para testes e uso.
+            
+            ### Instalação
+            1. Baixe o arquivo APK anexado abaixo no seu celular Android.
+            2. Instale o arquivo (talvez seja necessário permitir a instalação de fontes desconhecidas no seu navegador/gerenciador de arquivos).
+            
+            ---
+            *Compilado em: ${{ github.event.repository.updated_at || github.event.head_commit.timestamp }}*
+          files: |
+            mobile/LetterGram-${{ steps.info.outputs.version_name }}.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
