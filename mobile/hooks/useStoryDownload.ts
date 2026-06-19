@@ -103,7 +103,7 @@ export function useStoryDownload({ movieTitle, posterBase64, isSticker, isSolid 
         document.body.removeChild(link);
       } else {
         const base64Data = posterBase64.split(',')[1];
-        const LegacyFS = await import('expo-file-system/build/legacy');
+        const LegacyFS = await import('expo-file-system/legacy');
         const fileUri = (LegacyFS.cacheDirectory ?? '') + `capa-${Date.now()}.jpg`;
         await LegacyFS.writeAsStringAsync(fileUri, base64Data, { encoding: LegacyFS.EncodingType.Base64 });
         if (!(await requestGalleryPermission())) return;
