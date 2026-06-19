@@ -103,8 +103,10 @@ export function StoryCard({
       <View style={[
         styles.storyContent,
         stickerMode === 0 && { flex: 1 },
-        !hasReviewText && stickerMode === 0 && { justifyContent: 'center', alignItems: 'center' },
       ]}>
+        {/* Spacer superior — empurra conteúdo para o centro */}
+        {stickerMode === 0 && <View style={{ flex: 1 }} />}
+
         {/* Poster + Title + Stars */}
         <View style={[styles.storyMiddle, !hasReviewText && { gap: 12 }]}>
           {data.posterBase64 ? (
@@ -159,8 +161,8 @@ export function StoryCard({
           </View>
         ) : null}
 
-        {/* Spacer — apenas quando tem texto e modo Normal */}
-        {stickerMode === 0 && hasReviewText && <View style={{ flex: 1 }} />}
+        {/* Spacer inferior — empurra conteúdo para o centro e footer para baixo */}
+        {stickerMode === 0 && <View style={{ flex: 1 }} />}
 
         {/* Footer: Review by + Logo */}
         <View style={styles.storyFooter}>
